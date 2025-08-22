@@ -1,0 +1,583 @@
+/* Основные стили */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f8f9fa;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* Заголовок */
+.header {
+    background-color: #4a6fa5;
+    color: white;
+    padding: 30px 0;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.logo {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.tagline {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+/* Основной контент */
+.main {
+    padding: 40px 0;
+}
+
+/* Секция управления */
+.controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background-color: #4a6fa5;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #3a5a8c;
+}
+
+.btn-secondary {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.btn-secondary:hover {
+    background-color: #dde2e6;
+}
+
+.search-container {
+    position: relative;
+    flex-grow: 1;
+    max-width: 500px;
+    display: flex;
+    gap: 10px;
+}
+
+#searchInput {
+    flex: 1;
+    padding: 10px 15px 10px 40px;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    font-size: 1rem;
+}
+
+.search-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+}
+
+#categoryFilter {
+    width: 150px;
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    font-size: 1rem;
+    background-color: white;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+#categoryFilter:focus {
+    border-color: #4a6fa5;
+    outline: none;
+}
+
+/* Сетка шаблонов */
+.templates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.template-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.template-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+}
+
+.template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+}
+
+.template-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #4a6fa5;
+    margin-bottom: 5px;
+}
+
+.template-category {
+    font-size: 0.9rem;
+    color: #6c757d;
+    background-color: #e9ecef;
+    padding: 3px 8px;
+    border-radius: 20px;
+    display: inline-block;
+}
+
+.template-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #6c757d;
+    transition: color 0.3s ease;
+}
+
+.edit-btn:hover {
+    color: #4a6fa5;
+}
+
+.delete-btn:hover {
+    color: #dc3545;
+}
+
+.template-content {
+    font-size: 0.95rem;
+    color: #495057;
+    line-height: 1.5;
+    max-height: 150px;
+    overflow: hidden;
+    position: relative;
+}
+
+.template-content::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    background: linear-gradient(transparent, white);
+}
+
+.template-footer {
+    margin-top: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+/* Модальные окна */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    overflow: auto;
+}
+
+/* Стили для вкладок импорта */
+.import-tabs {
+    display: flex;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+}
+
+.import-tab {
+    background-color: #f1f1f1;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 10px 20px;
+    transition: 0.3s;
+    font-size: 16px;
+    border-radius: 5px 5px 0 0;
+    margin-right: 5px;
+}
+
+.import-tab:hover {
+    background-color: #ddd;
+}
+
+.import-tab.active {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.import-file-upload {
+    margin: 15px 0;
+    display: flex;
+    align-items: center;
+}
+
+#fileName {
+    margin-left: 10px;
+    font-style: italic;
+    color: #666;
+}
+
+.modal-content {
+    background-color: white;
+    margin: 50px auto;
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 600px;
+    width: 90%;
+    position: relative;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+}
+
+.close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 1.8rem;
+    color: #adb5bd;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.close-btn:hover {
+    color: #495057;
+}
+
+#modalTitle {
+    margin-bottom: 20px;
+    color: #4a6fa5;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 10px 15px;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    font-size: 1rem;
+    font-family: inherit;
+}
+
+.form-group textarea {
+    resize: vertical;
+}
+
+/* Подвал */
+.footer {
+    background-color: #343a40;
+    color: white;
+    padding: 20px 0;
+    text-align: center;
+    margin-top: 40px;
+}
+
+/* Уведомления */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 5px;
+    color: white;
+    font-weight: 500;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    animation: slideIn 0.3s ease-out forwards;
+}
+
+.notification.success {
+    background-color: #4CAF50;
+}
+
+.notification.error {
+    background-color: #F44336;
+}
+
+.notification.hide {
+    animation: slideOut 0.3s ease-in forwards;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .search-container {
+        max-width: 100%;
+        order: -1;
+        margin-bottom: 15px;
+    }
+    
+    .templates-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    }
+    
+    .modal-content {
+        margin: 20px auto;
+        padding: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header {
+        padding: 20px 0;
+    }
+    
+    .logo {
+        font-size: 2rem;
+    }
+    
+    .templates-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Дополнительно: тёмная тема, избранное и разворачиваемый контент */
+.template-content.expanded {
+    max-height: none;
+}
+
+.template-content.expanded::after {
+    display: none;
+}
+
+.favorites-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #6c757d;
+    cursor: pointer;
+    user-select: none;
+}
+
+.favorites-toggle input {
+    transform: scale(1.2);
+}
+
+.favorite-btn.active {
+    color: #f5c518;
+}
+
+/* Тёмная тема */
+body.dark {
+    color: #e5e5e5;
+    background-color: #121212;
+}
+
+body.dark .header {
+    background-color: #32486d;
+}
+
+body.dark .btn-secondary {
+    background-color: #2a2f36;
+    color: #e5e5e5;
+}
+
+body.dark .btn-secondary:hover {
+    background-color: #3a4048;
+}
+
+body.dark .template-card {
+    background-color: #1e1e1e;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+body.dark .template-title {
+    color: #9bb4e4;
+}
+
+body.dark .template-category {
+    background-color: #2a2f36;
+    color: #c3c6ca;
+}
+
+body.dark .template-content {
+    color: #d0d3d7;
+}
+
+body.dark .template-content::after {
+    background: linear-gradient(transparent, #1e1e1e);
+}
+
+body.dark .modal-content {
+    background-color: #1f1f1f;
+    color: #e5e5e5;
+}
+
+body.dark #categoryFilter,
+body.dark #searchInput {
+    background-color: #1f1f1f;
+    border-color: #3a3a3a;
+    color: #e5e5e5;
+}
+
+body.dark .import-tab {
+    background-color: #2a2f36;
+    color: #e5e5e5;
+}
+
+body.dark .import-tab.active {
+    background-color: #4CAF50;
+    color: #fff;
+}
+
+body.dark .close-btn {
+    color: #9aa0a6;
+}
+
+body.dark .close-btn:hover {
+    color: #e8eaed;
+}
+
+/* Сортировка и мультивыбор */
+#sortSelect {
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    background: white;
+}
+
+.bulk-toolbar {
+    position: sticky;
+    top: 0;
+    background: #fff7cc;
+    border-bottom: 1px solid #f1e5a8;
+    padding: 10px 0;
+    z-index: 900;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+.bulk-toolbar .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.template-card.selected {
+    outline: 2px solid #4a6fa5;
+}
+
+.card-select {
+    margin-right: 8px;
+}
+
+body.dark .bulk-toolbar {
+    background: #2b2b12;
+    border-bottom-color: #5b5b2a;
+}
+
+body.dark #sortSelect {
+    background-color: #1f1f1f;
+    border-color: #3a3a3a;
+    color: #e5e5e5;
+}
+
+/* Hover цвета для action-кнопок */
+.action-btn.copy-btn:hover {
+    color: #17a2b8; /* бирюзовый */
+}
+.action-btn.expand-btn:hover {
+    color: #6f42c1; /* фиолетовый */
+}
+.action-btn.download-btn:hover {
+    color: #28a745; /* зеленый */
+}
+.action-btn.delete-btn:hover {
+    color: #dc3545; /* красный */
+}
+
+/* Hover цвета для bulk кнопок */
+#bulkToolbar .btn:hover {
+    filter: brightness(0.95);
+}
+
+/* Подсветка выбора при наведении в режиме мультивыбора */
+.template-card.selected:hover {
+    outline-color: #2b4e86;
+}

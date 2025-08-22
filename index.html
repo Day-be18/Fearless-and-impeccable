@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fearless and impeccable - Шаблоны на любой случай</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Бесстрашные и безупречные</h1>
+            <p class="tagline">Шаблоны для чатов на любой случай</p>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <section class="controls">
+                <button id="addTemplateBtn" class="btn btn-primary"><i class="fas fa-plus"></i> Добавить шаблон</button>
+                <button id="importBtn" class="btn btn-secondary"><i class="fas fa-file-import"></i> Импорт</button>
+                <button id="themeToggleBtn" class="btn btn-secondary" title="Тёмная тема"><i class="fas fa-moon"></i> Тема</button>
+                <label class="favorites-toggle"><input type="checkbox" id="favoritesOnly"> ⭐ Только избранные</label>
+                <div class="search-container">
+                    <input type="text" id="searchInput" placeholder="Поиск шаблонов...">
+                    <i class="fas fa-search search-icon"></i>
+                    <select id="categoryFilter" class="category-select">
+                        <option value="all">Все категории</option>
+                        <!-- Категории будут добавлены динамически -->
+                    </select>
+                    <select id="sortSelect" title="Сортировка">
+                        <option value="dateModified_desc">Изменённые (сначала новые)</option>
+                        <option value="dateModified_asc">Изменённые (сначала старые)</option>
+                        <option value="name_asc">Название (А→Я)</option>
+                        <option value="name_desc">Название (Я→А)</option>
+                        <option value="dateCreated_desc">Созданные (сначала новые)</option>
+                        <option value="dateCreated_asc">Созданные (сначала старые)</option>
+                    </select>
+                    <button id="multiSelectToggle" class="btn btn-secondary" title="Множественный выбор"><i class="fas fa-check-double"></i> Выбор</button>
+                </div>
+            </section>
+
+            <section id="bulkToolbar" class="bulk-toolbar" style="display:none;">
+                <div class="container">
+                    <span id="selectedCount">0 выбрано</span>
+                    <div class="bulk-actions">
+                        <button id="bulkExportBtn" class="btn btn-secondary"><i class="fas fa-file-export"></i> Экспорт выбранных</button>
+                        <button id="bulkDeleteBtn" class="btn btn-secondary"><i class="fas fa-trash"></i> Удалить выбранные</button>
+                        <button id="bulkClearBtn" class="btn btn-secondary"><i class="fas fa-times"></i> Очистить выбор</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="templates-grid" id="templatesGrid">
+                <!-- Шаблоны будут добавлены с помощью JavaScript -->
+            </section>
+        </div>
+    </main>
+
+    <!-- Модальное окно для добавления/редактирования шаблона -->
+    <div class="modal" id="templateModal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2 id="modalTitle">Добавить шаблон</h2>
+            <form id="templateForm">
+                <div class="form-group">
+                    <label for="templateName">Название шаблона:</label>
+                    <input type="text" id="templateName" required>
+                </div>
+                <div class="form-group">
+                    <label for="templateCategory">Категория:</label>
+                    <input type="text" id="templateCategory">
+                </div>
+                <div class="form-group">
+                    <label for="templateContent">Содержание:</label>
+                    <textarea id="templateContent" rows="10" required></textarea>
+                </div>
+                <input type="hidden" id="templateId">
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для импорта/экспорта -->
+    <div class="modal" id="importExportModal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2 id="importExportTitle">Импорт/Экспорт</h2>
+            <div id="importOptions" style="display: none; margin-bottom: 15px;">
+                <div class="import-tabs">
+                    <button id="importJsonTab" class="import-tab active">JSON</button>
+                    <button id="importTxtTab" class="import-tab">TXT</button>
+                </div>
+                <div class="import-file-upload">
+                    <label for="fileInput" class="btn btn-secondary"><i class="fas fa-file-upload"></i> Загрузить файл</label>
+                    <input type="file" id="fileInput" accept=".json,.txt" style="display: none;">
+                    <span id="fileName"></span>
+                </div>
+                <div id="txtImportOptions" style="display: none; margin-top: 10px;">
+                    <label for="defaultCategory">Категория для шаблонов:</label>
+                    <input type="text" id="defaultCategory" value="Импортировано из TXT" style="width: 100%; padding: 8px; margin-top: 5px;">
+                </div>
+            </div>
+            <div class="form-group">
+                <textarea id="importExportContent" rows="15"></textarea>
+            </div>
+            <button id="confirmImportExportBtn" class="btn btn-primary">Подтвердить</button>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Бесстрашные и безупречные. Все права защищены.</p>
+        </div>
+    </footer>
+
+    <script src="js/database.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+  window.REMOTE_API_URL = 'https://localhost:3001';
+    </script>
+
+</body>
+</html>
