@@ -1,0 +1,82 @@
+{
+  "name": "Fearless and impeccable - Шаблоны",
+  "short_name": "Шаблоны",
+  "description": "Шаблоны для чатов на любой случай - удобное управление и поиск",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#4a6fa5",
+  "theme_color": "#4a6fa5",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "ru",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Добавить шаблон",
+      "short_name": "Добавить",
+      "description": "Создать новый шаблон",
+      "url": "/?action=add",
+      "icons": [
+        {
+          "src": "/favicon-32x32.png",
+          "sizes": "32x32"
+        }
+      ]
+    },
+    {
+      "name": "Поиск шаблонов",
+      "short_name": "Поиск",
+      "description": "Найти нужный шаблон",
+      "url": "/?action=search",
+      "icons": [
+        {
+          "src": "/favicon-32x32.png",
+          "sizes": "32x32"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/screenshot-narrow.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
+}
