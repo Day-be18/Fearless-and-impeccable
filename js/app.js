@@ -251,21 +251,24 @@ class TemplateApp {
         // Закрытие модальных окон
         const closeButtons = document.querySelectorAll('.close-btn');
         closeButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                this.templateModal.style.display = 'none';
-                this.importExportModal.style.display = 'none';
+            button.addEventListener('click', (e) => {
+                // find nearest modal ancestor and hide it
+                let modal = e.currentTarget.closest('.modal');
+                if (modal) modal.style.display = 'none';
             });
         });
         
         // Закрытие модальных окон при клике вне их области
-        window.addEventListener('click', (event) => {
-            if (event.target === this.templateModal) {
-                this.templateModal.style.display = 'none';
-            }
-            if (event.target === this.importExportModal) {
-                this.importExportModal.style.display = 'none';
-            }
-        });
+        // Disabled: модалки теперь нельзя закрыть кликом по затемнённой области
+        // (только с помощью крестика)
+        // window.addEventListener('click', (event) => {
+        //     if (event.target === this.templateModal) {
+        //         this.templateModal.style.display = 'none';
+        //     }
+        //     if (event.target === this.importExportModal) {
+        //         this.importExportModal.style.display = 'none';
+        //     }
+        // });
     }
 
     /**

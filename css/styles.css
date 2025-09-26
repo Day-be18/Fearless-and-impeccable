@@ -24,6 +24,9 @@
     --grid-gap-desktop: 20px;
     --grid-gap-tablet: 16px;
     --grid-gap-mobile: 12px;
+    /* category chip colors (theme-aware) */
+    --category-border-color: rgba(0,0,0,0.08);
+    --category-bg: rgba(0,0,0,0.02);
 }
 
 /* Тёмная тема */
@@ -42,6 +45,9 @@
     --shadow-light: 0 2px 10px rgba(0, 0, 0, 0.6);
     --shadow-medium: 0 5px 15px rgba(0, 0, 0, 0.8);
     --shadow-heavy: 0 5px 20px rgba(0, 0, 0, 0.9);
+    /* category chip colors for dark theme */
+    --category-border-color: rgba(255,255,255,0.08);
+    --category-bg: rgba(255,255,255,0.02);
 }
 
 /* Скрытые элементы для скринридеров */
@@ -349,27 +355,19 @@ body {
     color: #ffcc33;
 }
 
-.search-container::before {
-    content: '';
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 20px;
-    height: 20px;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%236c757d' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.098zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E") no-repeat center;
-    pointer-events: none;
-}
 
 #searchInput {
     grid-column: 1;
-    padding: clamp(10px, 2.5vw, 15px) clamp(15px, 3.5vw, 20px) clamp(10px, 2.5vw, 15px) clamp(40px, 8vw, 50px);
+    padding: clamp(10px, 2.5vw, 15px) clamp(15px, 3.5vw, 20px) clamp(10px, 2.5vw, 15px) clamp(44px, 8vw, 50px);
     border: 1px solid var(--border-color);
     border-radius: 5px;
     font-size: clamp(0.875rem, 2.5vw, 1rem);
     background-color: var(--bg-secondary);
     color: var(--text-primary);
     transition: var(--transition);
+    background-repeat: no-repeat;
+    background-position: 12px center;
+    background-size: 18px 18px;
 }
 
 #searchInput:focus {
@@ -690,15 +688,20 @@ body {
     min-width: 0;
 }
 
+/* Reserve space to the right of the title so action buttons don't overlap it */
+.template-title { padding-right: 150px; }
+
 .template-category {
     font-size: clamp(0.8rem, 2.5vw, 0.9rem);
     color: var(--text-secondary);
     background-color: var(--secondary-color);
-    padding: clamp(2px, 1vw, 4px) clamp(6px, 2vw, 10px);
+    padding: clamp(2px, 1vw, 4px) clamp(8px, 2vw, 10px);
     border-radius: 20px;
     display: inline-block;
     white-space: nowrap;
     flex-shrink: 0;
+    border: 1px solid var(--border-color); /* subtle grey outline to mark category */
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02) inset; /* slight inner depth */
 }
 
 .template-actions {
@@ -722,6 +725,9 @@ body {
     align-items: center;
     justify-content: center;
 }
+
+/* ensure action buttons sit above text and are clickable */
+.action-btn { position: relative; z-index: 6; }
 
 .action-btn:hover,
 .action-btn:focus {
@@ -873,7 +879,7 @@ body {
     top: clamp(12px, 3vw, 20px);
     right: clamp(16px, 4vw, 24px);
     font-size: clamp(1.5rem, 4vw, 1.8rem);
-    color: var(--text-secondary);
+    color: #c82333; /* red cross */
     cursor: pointer;
     transition: var(--transition);
     width: 32px;
@@ -887,8 +893,15 @@ body {
 }
 
 .close-btn:hover {
-    color: var(--text-primary);
-    background-color: rgba(0, 0, 0, 0.1);
+    color: #fff;
+    background-color: #c82333; /* red background */
+    transform: scale(1.06);
+    box-shadow: 0 6px 18px rgba(200,40,51,0.25);
+}
+
+.close-btn:focus {
+    outline: 3px solid rgba(200,40,51,0.18);
+    outline-offset: 2px;
 }
 
 #modalTitle {
@@ -1752,6 +1765,38 @@ body {
     .icon-btn { width: 40px; height: 40px; }
 }
 
+/* High-priority override: ensure actions are a horizontal top bar */
+.template-card { display: flex !important; flex-direction: column !important; }
+.template-actions {
+    order: -1 !important; /* visually move to top */
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 8px 12px !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    flex-wrap: nowrap !important;
+}
+.template-actions .action-btn {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    min-width: 36px !important;
+    height: 36px !important;
+}
+
+/* Remove legacy header paddings that reserved side space for absolute actions */
+.template-header {
+    padding-top: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* Ensure title doesn't reserve extra right padding */
+.template-title { padding-right: 0 !important; }
+
+
 /* Small improvement: ensure images inside templates are responsive */
 .template-card img, .template-card video {
     max-width: 100%;
@@ -1761,6 +1806,109 @@ body {
 }
 
 /* End of responsive enhancements */
+
+/* ----------------------------
+   Final overrides (high specificity)
+   Fix remaining layout conflicts and ensure consistent stacking
+   ---------------------------- */
+
+/* Remove any remaining pseudo-element search icons */
+.search-container::before { display: none !important; }
+
+/* Force stacking of search and filters on small/medium screens */
+@media (max-width: 900px) {
+    .search-container {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+        align-items: stretch;
+    }
+    .search-container > #searchInput { grid-column: 1 / -1; width: 100%; }
+    .search-container > select, .search-container > button, .search-container .favorites-toggle {
+        grid-column: 1 / -1;
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+/* Extra safety: also apply on <=768 and <=576 to cover all small viewports */
+@media (max-width: 768px) {
+    .search-container { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 576px) {
+    .search-container { grid-template-columns: 1fr !important; }
+}
+
+/* Ensure template header uses flexbox and action buttons do not overlap title/content */
+.template-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+.template-title {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    padding-right: 0 !important;
+}
+.template-actions {
+    position: static !important;
+    margin-left: 8px !important;
+    display: flex !important;
+    gap: 8px !important;
+    align-items: center !important;
+}
+.action-btn { position: relative !important; z-index: 10 !important; }
+
+@media (max-width: 576px) {
+    .template-header { flex-direction: column !important; align-items: stretch !important; }
+    .template-actions { order: 2 !important; margin-top: 8px !important; justify-content: flex-end !important; }
+}
+
+/* ==================================================
+   Move functional action buttons to the very top of
+   the template card so they remain fixed visually
+   and all text flows underneath on any screen size.
+   This uses flex ordering so no HTML changes are needed.
+   ================================================== */
+
+/* Ensure card is a column flex container (should already be), reinforce here */
+.template-card {
+    display: flex !important;
+    flex-direction: column !important;
+    position: relative !important;
+}
+
+/* Put actions to the top of the card */
+.template-actions {
+    order: -1 !important; /* move before header/title */
+    width: 100% !important; /* span the full card width */
+    display: flex !important;
+    justify-content: flex-end !important; /* keep buttons on the right */
+    gap: 8px !important;
+    padding: 8px 12px !important; /* visual spacing */
+    box-sizing: border-box !important;
+    background: transparent !important;
+}
+
+/* Make sure action buttons are compact on the top bar */
+.template-actions .action-btn { min-width: 36px !important; height: 36px !important; padding: 6px !important; }
+
+/* Ensure header/title/content sits below the actions */
+.template-header,
+.template-title,
+.template-category,
+.template-content,
+.template-footer {
+    order: 0 !important;
+}
+
+/* For very small widths keep actions visible and compact */
+@media (max-width: 480px) {
+    .template-actions { padding: 6px 8px !important; gap: 6px !important; }
+    .template-actions .action-btn { min-width: 34px !important; height: 34px !important; }
+}
+
+
 
 /* ==================================================
    Fix header-controls overlap and search/filter stacking
@@ -1837,3 +1985,142 @@ body {
     /* make room for controls without overlapping the logo */
     .logo { padding-right: 12px; }
 }
+
+/* Fix: ensure search icon is inside the search input and does not overlap selects */
+.search-container {
+    position: relative;
+    align-items: center;
+}
+/* Use background icon inside input instead of container pseudo-element to avoid stacking issues */
+.search-container::before { display: none !important; }
+#searchInput {
+    padding-left: clamp(36px, 8vw, 44px);
+    min-width: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%236c757d' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.098zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 12px center;
+    background-size: 18px 18px;
+    z-index: 3;
+}
+
+/* allow selects to shrink properly in grid */
+#categoryFilter, #sortSelect, #multiSelectToggle, .category-select {
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* On narrow screens ensure selects expand to full width under the search input */
+@media (max-width: 768px) {
+    #categoryFilter, #sortSelect, #multiSelectToggle {
+        width: 100%;
+        display: block;
+    }
+}
+
+/* Fix: ensure action buttons in template cards don't overlap the title/content */
+.template-card { position: relative; }
+/* Use flex layout to reliably keep actions to the right without overlapping content */
+.template-header {
+    display: flex !important;
+    align-items: flex-start;
+    gap: 12px;
+}
+.template-title { flex: 1 1 auto; min-width: 0; padding-right: 0 !important; }
+.template-actions {
+    position: static !important;
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    z-index: 5;
+}
+
+@media (max-width: 576px) {
+    /* on small screens stack header and actions vertically */
+    .template-header { flex-direction: column; align-items: stretch; }
+    .template-actions { order: 2; margin-top: 8px; justify-content: flex-end; }
+}
+
+/* Theme-aware styling for category chip
+   Uses CSS variables so border/background change with theme. */
+.template-category {
+    border: 1px solid var(--category-border-color) !important;
+    background-color: var(--category-bg) !important;
+    color: var(--text-secondary) !important;
+    box-shadow: none !important;
+}
+
+/* =====================
+   Strong layout fixes for template cards
+   Ensure actions are the top bar and header (title + category)
+   always sit underneath actions and above the description.
+   Targets cards inside the templates grid with high specificity
+   to override older/inline rules that reserve right padding.
+   ===================== */
+.templates-grid .template-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+}
+
+.templates-grid .template-card > .template-actions {
+    position: static !important; /* remove absolute positioning */
+    order: -1 !important; /* move to the very top visually */
+    align-self: stretch !important; /* span full width */
+    width: 100% !important;
+    display: flex !important;
+    justify-content: flex-end !important; /* keep buttons to the right */
+    gap: 8px !important;
+    padding: 8px 12px !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    flex-wrap: nowrap !important;
+    z-index: 8 !important;
+}
+
+.templates-grid .template-card > .template-header {
+    display: flex !important;
+    flex-direction: column !important; /* title above category */
+    align-items: flex-start !important;
+    gap: 6px !important;
+    padding-top: 6px !important;
+    padding-right: 0 !important; /* don't reserve space on the right */
+    width: 100% !important;
+    box-sizing: border-box !important;
+    order: 0 !important; /* ensure header is below actions */
+}
+
+.templates-grid .template-card .template-title {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-right: 0 !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    white-space: normal !important;
+}
+
+.templates-grid .template-card .template-category {
+    display: inline-block !important;
+    margin-top: 2px !important;
+    color: var(--text-secondary) !important;
+    background-color: transparent !important;
+}
+
+.templates-grid .template-card .template-content {
+    order: 2 !important;
+    margin-top: 8px !important;
+}
+
+/* Make sure action buttons remain compact and don't wrap into vertical stack */
+.templates-grid .template-card .template-actions .action-btn {
+    min-width: 36px !important;
+    height: 36px !important;
+    flex: 0 0 auto !important;
+}
+
+/* If cards are very narrow (e.g. 4 per row on small-ish viewports) reduce paddings
+   so title/category and actions look harmonious */
+@media (max-width: 1100px) {
+    .templates-grid .template-card > .template-actions { padding: 6px 8px !important; gap: 6px !important; }
+    .templates-grid .template-card .template-title { font-size: 1rem !important; }
+}
+
