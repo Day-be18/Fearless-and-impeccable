@@ -234,19 +234,13 @@ class TemplateApp {
         this.favoritesOnlyToggle = document.getElementById('favoritesOnly');
         this.themeToggleBtn = document.getElementById('themeToggleBtn');
         this.sortSelect = document.getElementById('sortSelect');
-        this.multiSelectToggle = document.getElementById('multiSelectToggle');
-        this.bulkToolbar = document.getElementById('bulkToolbar');
-        this.selectedCountEl = document.getElementById('selectedCount');
-        this.bulkExportBtn = document.getElementById('bulkExportBtn');
-        this.bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
-        this.bulkClearBtn = document.getElementById('bulkClearBtn');
+    // multi-select feature removed: elements and handlers were deleted
         
         // Состояние приложения
         this.currentCategory = 'all';
         this.currentFavoritesOnly = false;
         this.currentSort = 'dateModified_desc';
-        this.multiSelectMode = false;
-        this.selectedIds = new Set();
+    // multi-select state removed
         
         // Закрытие модальных окон
         const closeButtons = document.querySelectorAll('.close-btn');
@@ -365,36 +359,9 @@ class TemplateApp {
             });
         }
         
-        if (this.multiSelectToggle) {
-            this.multiSelectToggle.addEventListener('click', () => {
-                this.multiSelectMode = !this.multiSelectMode;
-                this.selectedIds.clear();
-                this.updateBulkUI();
-                this.loadTemplates();
-            });
-        }
+        // multi-select toggle removed
         
-        if (this.bulkExportBtn) {
-            this.bulkExportBtn.addEventListener('click', () => {
-                if (this.selectedIds.size === 0) return;
-                this.exportTemplatesByIds(Array.from(this.selectedIds));
-            });
-        }
-        
-        if (this.bulkDeleteBtn) {
-            this.bulkDeleteBtn.addEventListener('click', () => {
-                if (this.selectedIds.size === 0) return;
-                this.deleteSelectedTemplates();
-            });
-        }
-        
-        if (this.bulkClearBtn) {
-            this.bulkClearBtn.addEventListener('click', () => {
-                this.selectedIds.clear();
-                this.updateBulkUI();
-                this.loadTemplates();
-            });
-        }
+        // bulk buttons removed
         
         // Быстрый фокус на поиск: Ctrl/Cmd + K
         document.addEventListener('keydown', (e) => {
@@ -652,20 +619,7 @@ class TemplateApp {
         const actions = document.createElement('div');
         actions.className = 'template-actions';
         
-        // Чекбокс выбора при мультивыборе
-        if (this.multiSelectMode) {
-            const selectBox = document.createElement('input');
-            selectBox.type = 'checkbox';
-            selectBox.className = 'card-select';
-            selectBox.checked = this.selectedIds.has(String(template.id));
-            selectBox.addEventListener('change', () => {
-                const key = String(template.id);
-                if (selectBox.checked) this.selectedIds.add(key); else this.selectedIds.delete(key);
-                card.classList.toggle('selected', selectBox.checked);
-                this.updateBulkUI();
-            });
-            actions.appendChild(selectBox);
-        }
+        // Multi-select removed: no selection checkbox rendered
         
         // Избранное
         const favoriteBtn = document.createElement('button');
@@ -1231,13 +1185,7 @@ class TemplateApp {
     }
 
     updateBulkUI() {
-        if (!this.bulkToolbar) return;
-        const hasSelection = this.selectedIds.size > 0;
-        this.bulkToolbar.style.display = hasSelection ? 'block' : 'none';
-        if (this.selectedCountEl) this.selectedCountEl.textContent = `${this.selectedIds.size} выбрано`;
-        if (this.multiSelectToggle) {
-            this.multiSelectToggle.classList.toggle('btn-primary', this.multiSelectMode);
-        }
+        // bulk UI removed
     }
 
     exportTemplatesByIds(ids) {
@@ -1285,32 +1233,6 @@ class TemplateApp {
     }
     
     deleteSelectedTemplates() {
-        if (!this.selectedIds.size) {
-            this.showNotification('Нет выбранных шаблонов', 'warning');
-            return;
-        }
-
-        if (!confirm(`Вы уверены, что хотите удалить ${this.selectedIds.size} шаблон(ов)?`)) {
-            return;
-        }
-
-        try {
-            const ops = Array.from(this.selectedIds).map(id => TemplateDB.deleteTemplate(isNaN(parseInt(id,10))? id : parseInt(id,10)));
-            Promise.all(ops)
-                .then(() => {
-                    this.showNotification(`Удалено ${this.selectedIds.size} шаблон(ов)`);
-                    this.selectedIds.clear();
-                    this.updateBulkUI();
-                    this.loadTemplates();
-                    this.loadCategories();
-                })
-                .catch(error => {
-                    console.error('Ошибка при удалении шаблонов:', error);
-                    this.showNotification('Ошибка при удалении шаблонов', 'error');
-                });
-        } catch (error) {
-            console.error('Ошибка при удалении шаблонов:', error);
-            this.showNotification('Ошибка при удалении шаблонов', 'error');
-        }
+        // bulk delete removed
     }
 }
