@@ -65,12 +65,10 @@ try {
     }
 } 
 catch {
-    Write-Host "Error: $_" -ForegroundColor Red
-    Write-Host "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Red
+    Write-Host "Error: $_"
 } 
 finally {
-    if ($listener -and $listener.IsListening) {
+    if ($listener.IsListening) {
         $listener.Stop()
-        Write-Host "Server stopped." -ForegroundColor Yellow
     }
 }

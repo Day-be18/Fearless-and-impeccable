@@ -240,6 +240,9 @@ class TemplateApp {
         this.currentCategory = 'all';
         this.currentFavoritesOnly = false;
         this.currentSort = 'dateModified_desc';
+    // Fuse.js index and cache
+    this.fuse = null;
+    this._fuseList = [];
     // multi-select state removed
         
         // Закрытие модальных окон
@@ -264,6 +267,8 @@ class TemplateApp {
         //     }
         // });
     }
+
+    /* accessibility hooks moved after class definition to avoid syntax errors */
 
     /**
      * Инициализация приложения
@@ -444,7 +449,7 @@ class TemplateApp {
                         this.showNotification('Ошибка при подготовке JSON', 'error');
                     }
                 } else if (isTxtTab) {
-                    TemplateDB.getAllTemplates().then(templates => {
+                    templateDB.getAllTemplates().then(templates => {
                         const txt = this.generateTxtFromTemplates(templates);
                         const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
                         const url = URL.createObjectURL(blob);
@@ -551,6 +556,29 @@ class TemplateApp {
     
     loadAllTemplates() {
         TemplateDB.getAllTemplates().then(templates => {
+            // build Fuse index-friendly list
+            try {
+                this._fuseList = templates.map(t => ({ id: String(t.id), name: t.name || '', category: t.category || '', content: t.content || '', raw: t }));
+                if (window.Fuse) {
+                    const options = {
+                        keys: [
+                            { name: 'name', weight: 0.7 },
+                            { name: 'category', weight: 0.4 },
+                            { name: 'content', weight: 0.2 }
+                        ],
+                        includeMatches: true,
+                        threshold: 0.4,
+                        ignoreLocation: true,
+                        minMatchCharLength: 2
+                    };
+                    this.fuse = new Fuse(this._fuseList, options);
+                } else {
+                    this.fuse = null;
+                }
+            } catch (e) {
+                console.warn('Ошибка при построении индекса Fuse:', e);
+                this.fuse = null;
+            }
             this.renderTemplates(templates);
         }).catch(error => {
             console.error('Ошибка при загрузке шаблонов:', error);
@@ -593,7 +621,7 @@ class TemplateApp {
         const card = document.createElement('div');
         card.className = 'template-card';
         card.dataset.id = template.id;
-        // Multi-select removed: no selection state needed
+        // multi-select removed: cards start unselected
         
         const header = document.createElement('div');
         header.className = 'template-header';
@@ -602,13 +630,32 @@ class TemplateApp {
         
         const title = document.createElement('h3');
         title.className = 'template-title';
-        title.textContent = template.name;
+        // apply highlight if matches present
+        if (template.__matches && Array.isArray(template.__matches)) {
+            const nameMatch = template.__matches.find(m => m.key === 'name');
+            if (nameMatch && nameMatch.indices && nameMatch.indices.length) {
+                title.innerHTML = this._applyHighlights(template.name || '', nameMatch.indices);
+            } else {
+                title.textContent = template.name;
+            }
+        } else {
+            title.textContent = template.name;
+        }
         titleContainer.appendChild(title);
         
         if (template.category) {
             const category = document.createElement('span');
             category.className = 'template-category';
-            category.textContent = template.category;
+            if (template.__matches && Array.isArray(template.__matches)) {
+                const catMatch = template.__matches.find(m => m.key === 'category');
+                if (catMatch && catMatch.indices && catMatch.indices.length) {
+                    category.innerHTML = this._applyHighlights(template.category || '', catMatch.indices);
+                } else {
+                    category.textContent = template.category;
+                }
+            } else {
+                category.textContent = template.category;
+            }
             titleContainer.appendChild(category);
         }
         
@@ -739,7 +786,26 @@ class TemplateApp {
             }).replace(/\n/g, '<br>');
         }
 
-        content.innerHTML = linkify(template.content || '');
+        // If matches exist for content, render a short preview with highlight
+        if (template.__matches && Array.isArray(template.__matches)) {
+            const contentMatch = template.__matches.find(m => m.key === 'content');
+            if (contentMatch && contentMatch.indices && contentMatch.indices.length) {
+                // build preview: take first match, show ~120 chars around
+                const raw = template.content || '';
+                const first = contentMatch.indices[0];
+                const start = Math.max(0, first[0] - 60);
+                const end = Math.min(raw.length, first[1] + 60);
+                let snippet = raw.substring(start, end);
+                if (start > 0) snippet = '…' + snippet;
+                if (end < raw.length) snippet = snippet + '…';
+                snippet = this._applyHighlights(snippet, contentMatch.indices.map(([s,e]) => [s - start, e - start]));
+                content.innerHTML = linkify(snippet);
+            } else {
+                content.innerHTML = linkify(template.content || '');
+            }
+        } else {
+            content.innerHTML = linkify(template.content || '');
+        }
         
         // Логика разворачивания
         expandBtn.addEventListener('click', () => {
@@ -768,6 +834,44 @@ class TemplateApp {
         card.appendChild(footer);
         
         return card;
+    }
+
+    /**
+     * Apply simple <mark> highlights based on match indices returned by Fuse
+     * @param {string} text
+     * @param {Array<[number,number]>} indices
+     * @returns {string} HTML string with <mark class="search-hit"> wrappers
+     */
+    _applyHighlights(text, indices) {
+        if (!text) return '';
+        if (!indices || !indices.length) return this._escapeHtml(text);
+        // merge overlapping indices
+        const merged = [];
+        indices.slice().sort((a,b)=>a[0]-b[0]).forEach(([s,e]) => {
+            if (!merged.length) return merged.push([s,e]);
+            const last = merged[merged.length-1];
+            if (s <= last[1]) {
+                last[1] = Math.max(last[1], e);
+            } else merged.push([s,e]);
+        });
+        let out = '';
+        let cursor = 0;
+        merged.forEach(([s,e]) => {
+            out += this._escapeHtml(text.substring(cursor, s));
+            out += '<mark class="search-hit">' + this._escapeHtml(text.substring(s, e+1)) + '</mark>';
+            cursor = e+1;
+        });
+        out += this._escapeHtml(text.substring(cursor));
+        return out;
+    }
+
+    _escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     /**
@@ -987,7 +1091,26 @@ class TemplateApp {
      * @param {string} category - Категория для фильтрации
      */
     searchTemplates(query, category) {
-        TemplateDB.searchTemplates(query, category).then(templates => {
+        const q = (query || '').trim();
+        if (this.fuse && q.length > 0) {
+            try {
+                const fuseRes = this.fuse.search(q, { limit: 200 });
+                let templates = fuseRes.map(r => {
+                    const item = (r && r.item && r.item.raw) ? r.item.raw : (r.item || {});
+                    item.__matches = r.matches || [];
+                    return item;
+                });
+                if (category && category !== 'all') templates = templates.filter(t => (t.category || '') === category);
+                if (this.currentFavoritesOnly) templates = templates.filter(t => t.favorite);
+                this.renderTemplates(templates);
+                return Promise.resolve();
+            } catch (e) {
+                console.warn('Fuse search error, falling back to DB search', e);
+            }
+        }
+
+        // fallback to DB search
+        return TemplateDB.searchTemplates(q, category).then(templates => {
             let result = templates;
             if (this.currentFavoritesOnly) {
                 result = result.filter(t => t.favorite);
@@ -1183,7 +1306,7 @@ class TemplateApp {
     }
 
     updateBulkUI() {
-        // bulk UI removed
+        // bulk UI removed - function kept intentionally as noop for backward compatibility
     }
 
     exportTemplatesByIds(ids) {
@@ -1192,9 +1315,6 @@ class TemplateApp {
             const list = ids.map(id=>map.get(String(id))).filter(Boolean);
             if (list.length === 0) return;
             this.exportTemplatesAsTxt(list, `templates_${Date.now()}.txt`);
-        }).catch(error => {
-            console.error('Ошибка при получении шаблонов для экспорта:', error);
-            this.showNotification('Ошибка при экспорте шаблонов', 'error');
         });
     }
 
@@ -1234,6 +1354,81 @@ class TemplateApp {
     }
     
     deleteSelectedTemplates() {
-        // bulk delete removed
+        // bulk delete removed - noop kept for compatibility
     }
 }
+
+/* ----------------------
+   Accessibility: global Esc close and focus trap
+   These helpers are attached after class definition to avoid messing class syntax.
+   ---------------------- */
+
+// Global key handler to close the topmost open modal on Esc
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+        // find visible modal (display block)
+        const openModal = document.querySelector('.modal[style*="display: block"], .modal[style*="display:block"]');
+        if (openModal) openModal.style.display = 'none';
+    }
+});
+
+// Focus trap helper
+function trapFocus(modal) {
+    if (!modal) return null;
+    const focusable = modal.querySelectorAll('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) return null;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    function handleTab(e) {
+        if (e.key !== 'Tab') return;
+        if (e.shiftKey) {
+            if (document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            }
+        } else {
+            if (document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    }
+
+    modal.addEventListener('keydown', handleTab);
+    setTimeout(() => first.focus(), 10);
+    return () => modal.removeEventListener('keydown', handleTab);
+}
+
+// Patch TemplateApp modal opening methods to trap focus
+if (typeof TemplateApp !== 'undefined') {
+    (function() {
+        const origOpenTemplate = TemplateApp.prototype.openTemplateModal;
+        TemplateApp.prototype.openTemplateModal = function(template) {
+            origOpenTemplate.call(this, template);
+            if (this._releaseFocusTrap) this._releaseFocusTrap();
+            this._releaseFocusTrap = trapFocus(this.templateModal);
+        };
+
+        const origOpenImport = TemplateApp.prototype.openImportModal;
+        TemplateApp.prototype.openImportModal = function() {
+            origOpenImport.call(this);
+            if (this._releaseFocusTrap) this._releaseFocusTrap();
+            this._releaseFocusTrap = trapFocus(this.importExportModal);
+        };
+
+        const origOpenExport = TemplateApp.prototype.openExportModal;
+        TemplateApp.prototype.openExportModal = function() {
+            origOpenExport.call(this);
+            if (this._releaseFocusTrap) this._releaseFocusTrap();
+            this._releaseFocusTrap = trapFocus(this.importExportModal);
+        };
+    })();
+}
+
+// Ensure closing a modal via close button also releases focus trap
+document.querySelectorAll('.close-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        try { if (window.app && typeof window.app._releaseFocusTrap === 'function') window.app._releaseFocusTrap(); } catch(e){}
+    });
+});
