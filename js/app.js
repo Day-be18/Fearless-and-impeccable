@@ -444,7 +444,7 @@ class TemplateApp {
                         this.showNotification('Ошибка при подготовке JSON', 'error');
                     }
                 } else if (isTxtTab) {
-                    templateDB.getAllTemplates().then(templates => {
+                    TemplateDB.getAllTemplates().then(templates => {
                         const txt = this.generateTxtFromTemplates(templates);
                         const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
                         const url = URL.createObjectURL(blob);
@@ -488,7 +488,7 @@ class TemplateApp {
             document.getElementById('txtImportOptions').style.display = 'block';
             this.importExportContent.placeholder = this.importExportTitle.textContent === 'Экспорт' ? 'Предпросмотр TXT...' : 'Вставьте текст с шаблонами или загрузите файл...';
             if (this.importExportTitle.textContent === 'Экспорт') {
-                templateDB.getAllTemplates().then(templates => {
+                TemplateDB.getAllTemplates().then(templates => {
                     this.importExportContent.value = this.generateTxtFromTemplates(templates);
                 });
             }
@@ -593,9 +593,7 @@ class TemplateApp {
         const card = document.createElement('div');
         card.className = 'template-card';
         card.dataset.id = template.id;
-        if (this.selectedIds.has(String(template.id))) {
-            card.classList.add('selected');
-        }
+        // Multi-select removed: no selection state needed
         
         const header = document.createElement('div');
         header.className = 'template-header';
@@ -1194,6 +1192,9 @@ class TemplateApp {
             const list = ids.map(id=>map.get(String(id))).filter(Boolean);
             if (list.length === 0) return;
             this.exportTemplatesAsTxt(list, `templates_${Date.now()}.txt`);
+        }).catch(error => {
+            console.error('Ошибка при получении шаблонов для экспорта:', error);
+            this.showNotification('Ошибка при экспорте шаблонов', 'error');
         });
     }
 
