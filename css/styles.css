@@ -451,6 +451,34 @@ body {
     transition: var(--transition);
 }
 
+/* Анимация удаления карточки */
+.template-card {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Состояние избранной звезды */
+.favorite-btn {
+    transition: transform 0.2s ease;
+}
+
+.favorite-btn.active {
+    transform: scale(1.2);
+}
+
+.favorite-btn.active i {
+    color: #ffcc33;
+    text-shadow: 0 2px 4px rgba(255, 204, 51, 0.3);
+}
+
+/* Анимация нажатия на кнопку избранного */
+.favorite-btn:active {
+    transform: scale(0.9);
+}
+
+.favorite-btn.active:active {
+    transform: scale(1.1);
+}
+
 .template-card:hover::before {
     transform: scaleX(1);
 }
@@ -632,7 +660,7 @@ body {
     margin: 0 0 6px 0;
     font-size: 1.05rem;
     line-height: 1.2;
-    max-width: calc(100% - 160px);
+    max-width: 100%;
 }
 
 .template-category {
@@ -1094,8 +1122,51 @@ body {
     color: #dc3545;
 }
 
-/* Hover цвета для bulk кнопок */
-/* bulk toolbar removed: styles omitted */
+/* Анимация для кнопки избранного */
+.favorite-btn {
+    transition: transform 0.2s ease-out !important;
+    position: relative;
+    z-index: 2;
+}
+
+.favorite-btn:hover {
+    transform: scale(1.15);
+}
+
+.favorite-btn.active {
+    transform: scale(1.2);
+}
+
+.favorite-btn.active i {
+    color: #ffcc33;
+    text-shadow: 0 2px 4px rgba(255, 204, 51, 0.3);
+    animation: starPop 0.3s ease-out;
+}
+
+.favorite-btn:active {
+    transform: scale(0.9);
+}
+
+.favorite-btn.active:active {
+    transform: scale(1.1);
+}
+
+@keyframes starPop {
+    0% { 
+        transform: scale(0.8) rotate(-15deg); 
+        opacity: 0.5; 
+    }
+    50% { 
+        transform: scale(1.3) rotate(5deg); 
+        opacity: 0.8; 
+        filter: brightness(1.2); 
+    }
+    100% { 
+        transform: scale(1) rotate(0deg); 
+        opacity: 1;
+        filter: brightness(1); 
+    }
+}
 
 /* Подсветка выбора при наведении в режиме мультивыбора */
 .template-card.selected:hover {
@@ -1804,6 +1875,94 @@ body {
 }
 
 /* End of responsive enhancements */
+
+/* ----------------------------
+   Favorite button animations and interactions
+   ---------------------------- */
+
+/* Base favorite button styles */
+.favorite-btn {
+    transition: transform 0.2s ease-out !important;
+    position: relative;
+    z-index: 2;
+}
+
+/* Hover effect */
+.favorite-btn:hover {
+    transform: scale(1.15);
+}
+
+/* Active/favorite state */
+.favorite-btn.active {
+    transform: scale(1.2);
+}
+
+/* Star icon in active state */
+.favorite-btn.active i {
+    color: #ffcc33;
+    text-shadow: 0 2px 4px rgba(255, 204, 51, 0.3);
+    animation: starPop 0.3s ease-out;
+}
+
+/* Click animations */
+.favorite-btn:active {
+    transform: scale(0.85);
+    transition: transform 0.1s ease-out;
+}
+
+.favorite-btn.active:active {
+    transform: scale(1.05);
+}
+
+/* Glow effect on hover */
+.favorite-btn:hover::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 32px;
+    height: 32px;
+    background: radial-gradient(circle, rgba(255,204,51,0.2) 0%, rgba(255,204,51,0) 70%);
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    z-index: 1;
+    animation: glowPulse 1.5s ease-in-out infinite;
+    pointer-events: none;
+}
+
+/* Pulsing glow animation */
+@keyframes glowPulse {
+    0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.4; }
+    50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.6; }
+    100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.4; }
+}
+
+/* Star pop animation */
+@keyframes starPop {
+    0% { 
+        transform: scale(0.8) rotate(-15deg); 
+        opacity: 0.5; 
+    }
+    50% { 
+        transform: scale(1.3) rotate(5deg); 
+        opacity: 0.8; 
+        filter: brightness(1.2); 
+    }
+    100% { 
+        transform: scale(1) rotate(0deg); 
+        opacity: 1;
+        filter: brightness(1); 
+    }
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .favorite-btn:hover::after {
+    background: radial-gradient(circle, rgba(255,204,51,0.15) 0%, rgba(255,204,51,0) 70%);
+}
+
+[data-theme="dark"] .favorite-btn.active i {
+    text-shadow: 0 2px 8px rgba(255,204,51,0.4);
+}
 
 /* ----------------------------
    Final overrides (high specificity)

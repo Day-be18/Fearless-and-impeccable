@@ -274,6 +274,23 @@ class TemplateApp {
      * Инициализация приложения
      */
     init() {
+        // Подписываемся на изменения в базе данных
+        if (window.TemplateDB && TemplateDB.subscribe) {
+            TemplateDB.subscribe((action, data) => {
+                switch (action) {
+                    case 'add':
+                        this.handleTemplateAdded(data);
+                        break;
+                    case 'update':
+                        this.handleTemplateUpdated(data);
+                        break;
+                    case 'delete':
+                        this.handleTemplateDeleted(data);
+                        break;
+                }
+            });
+        }
+
         // Тема и состояние фильтров из localStorage
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
@@ -375,18 +392,16 @@ class TemplateApp {
                 e.preventDefault();
                 this.searchInput.focus();
             }
-            // Toggle favorite for selected card with 'f'
+
+            // Toggle favorite for selected card with 'f' — delegate to the favorite button if present
             if (!e.ctrlKey && !e.metaKey && key === 'f') {
-                // find first selected card or focused card
                 const selectedCard = document.querySelector('.template-card.selected') || document.querySelector('.template-card:focus-within');
                 if (selectedCard) {
-                    const id = selectedCard.dataset.id;
-                    // toggle favorite in DB
-                    TemplateDB.getTemplateById(id).then(t => {
-                        if (!t) return;
-                        const updated = { ...t, favorite: !t.favorite };
-                        TemplateDB.updateTemplate(updated).then(() => this.loadTemplates());
-                    }).catch(()=>{});
+                    const favBtn = selectedCard.querySelector('.favorite-btn');
+                    if (favBtn) {
+                        // Trigger click to reuse existing UI logic (which updates localStorage)
+                        favBtn.click();
+                    }
                 }
             }
         });
@@ -602,7 +617,8 @@ class TemplateApp {
         }
         
         if (this.currentFavoritesOnly) {
-            templates = templates.filter(t => t.favorite);
+            const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+            templates = templates.filter(t => favorites.includes(String(t.id)));
         }
         templates = this.sortTemplates(templates);
 
@@ -668,23 +684,43 @@ class TemplateApp {
         
         // Избранное
         const favoriteBtn = document.createElement('button');
-        favoriteBtn.className = 'action-btn favorite-btn' + (template.favorite ? ' active' : '');
+        const localFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+        const isFavorite = localFavorites.includes(String(template.id));
+        
+        favoriteBtn.className = 'action-btn favorite-btn' + (isFavorite ? ' active' : '');
         favoriteBtn.setAttribute('data-action', 'favorite');
-        favoriteBtn.setAttribute('aria-pressed', template.favorite ? 'true' : 'false');
-        favoriteBtn.setAttribute('aria-label', template.favorite ? 'Убрать из избранного' : 'В избранное');
+        favoriteBtn.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');
+        favoriteBtn.setAttribute('aria-label', isFavorite ? 'Убрать из избранного' : 'В избранное');
         favoriteBtn.innerHTML = '<i class="fas fa-star"></i>';
-        favoriteBtn.title = template.favorite ? 'Убрать из избранного' : 'В избранное';
+        favoriteBtn.title = isFavorite ? 'Убрать из избранного' : 'В избранное';
         favoriteBtn.addEventListener('click', () => {
-            const updated = { ...template, favorite: !template.favorite };
-            TemplateDB.updateTemplate(updated)
-                .then(() => {
-                    this.showNotification(updated.favorite ? 'Добавлено в избранное' : 'Удалено из избранного');
-                    this.loadTemplates();
-                })
-                .catch(error => {
-                    console.error('Ошибка при обновлении избранного:', error);
-                    this.showNotification('Ошибка при обновлении избранного', 'error');
-                });
+            const templateId = String(template.id);
+            const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+            const newFavorite = !favorites.includes(templateId);
+            
+            if (newFavorite) {
+                favorites.push(templateId);
+            } else {
+                const index = favorites.indexOf(templateId);
+                if (index > -1) {
+                    favorites.splice(index, 1);
+                }
+            }
+            
+            // Сохраняем обновленный список избранного
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+            
+            // Визуальное обновление
+            favoriteBtn.classList.toggle('active', newFavorite);
+            favoriteBtn.setAttribute('aria-pressed', newFavorite ? 'true' : 'false');
+            favoriteBtn.title = newFavorite ? 'Убрать из избранного' : 'В избранное';
+            
+            this.showNotification(newFavorite ? 'Добавлено в избранное' : 'Удалено из избранного');
+            
+            // Если включен фильтр "Только избранное", обновляем список
+            if (this.currentFavoritesOnly) {
+                this.loadTemplates();
+            }
         });
         
         const editBtn = document.createElement('button');
@@ -1045,18 +1081,45 @@ class TemplateApp {
      */
     deleteTemplate(id) {
         if (confirm('Вы уверены, что хотите удалить этот шаблон?')) {
-            // Преобразуем ID в число, если это возможно (для IndexedDB)
-            // или оставляем как есть (для localStorage)
+            // Визуально удаляем карточку до фактического удаления
+            const card = this.templatesGrid.querySelector(`.template-card[data-id="${id}"]`);
+            if (card) {
+                card.style.opacity = '0';
+                card.style.transform = 'scale(0.8)';
+            }
+
+            // Преобразуем ID в число, если это возможно
             const templateId = isNaN(parseInt(id, 10)) ? id : parseInt(id, 10);
+            
+            // Сначала удаляем из базы данных
             TemplateDB.deleteTemplate(templateId)
                 .then(() => {
-                    this.loadTemplates();
-                    this.loadCategories(); // Обновляем список категорий после удаления
+                    // После успешного удаления обновляем UI
+                    if (card && card.parentNode) {
+                        card.parentNode.removeChild(card);
+                    }
+                    // Принудительно перезагружаем шаблоны и категории
+                    return Promise.all([
+                        TemplateDB.getAllTemplates(),
+                        TemplateDB.getCategories()
+                    ]);
+                })
+                .then(([templates, categories]) => {
+                    // Обновляем UI с новыми данными
+                    this.renderTemplates(templates);
+                    this.loadCategories();
                     this.showNotification('Шаблон успешно удален');
                 })
                 .catch(error => {
                     console.error('Ошибка при удалении шаблона:', error);
                     this.showNotification('Ошибка при удалении шаблона', 'error');
+                    // Восстанавливаем видимость карточки в случае ошибки
+                    if (card) {
+                        card.style.opacity = '1';
+                        card.style.transform = 'scale(1)';
+                    }
+                    // Перезагружаем данные в случае ошибки
+                    this.loadTemplates();
                 });
         }
     }
@@ -1101,7 +1164,10 @@ class TemplateApp {
                     return item;
                 });
                 if (category && category !== 'all') templates = templates.filter(t => (t.category || '') === category);
-                if (this.currentFavoritesOnly) templates = templates.filter(t => t.favorite);
+                    if (this.currentFavoritesOnly) {
+                        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+                        templates = templates.filter(t => favorites.includes(String(t.id)));
+                    }
                 this.renderTemplates(templates);
                 return Promise.resolve();
             } catch (e) {
@@ -1112,9 +1178,10 @@ class TemplateApp {
         // fallback to DB search
         return TemplateDB.searchTemplates(q, category).then(templates => {
             let result = templates;
-            if (this.currentFavoritesOnly) {
-                result = result.filter(t => t.favorite);
-            }
+                if (this.currentFavoritesOnly) {
+                    const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+                    result = result.filter(t => favorites.includes(String(t.id)));
+                }
             this.renderTemplates(result);
         }).catch(error => {
             console.error('Ошибка при поиске шаблонов:', error);
@@ -1355,6 +1422,46 @@ class TemplateApp {
     
     deleteSelectedTemplates() {
         // bulk delete removed - noop kept for compatibility
+    }
+
+    // Обработчики изменений шаблонов
+    handleTemplateAdded(template) {
+        // Проверяем, соответствует ли новый шаблон текущим фильтрам
+        const matchesCategory = !this.currentCategory || this.currentCategory === 'all' || 
+                              template.category === this.currentCategory;
+        const matchesSearch = !this.searchInput.value || 
+                            template.name.toLowerCase().includes(this.searchInput.value.toLowerCase()) ||
+                            template.content.toLowerCase().includes(this.searchInput.value.toLowerCase());
+        const matchesFavorites = !this.currentFavoritesOnly || 
+                               (JSON.parse(localStorage.getItem('favorites') || '[]')).includes(String(template.id));
+
+        if (matchesCategory && matchesSearch && matchesFavorites) {
+            const card = this.createTemplateCard(template);
+            this.templatesGrid.insertBefore(card, this.templatesGrid.firstChild);
+            this.markNewTemplate(template.id);
+        }
+    }
+
+    handleTemplateUpdated(template) {
+        // Находим карточку шаблона
+        const card = this.templatesGrid.querySelector(`.template-card[data-id="${template.id}"]`);
+        if (card) {
+            // Заменяем существующую карточку на новую
+            const newCard = this.createTemplateCard(template);
+            card.parentNode.replaceChild(newCard, card);
+        } else {
+            // Если карточки не было, но она соответствует фильтрам, добавляем
+            this.handleTemplateAdded(template);
+        }
+    }
+
+    handleTemplateDeleted(id) {
+        const card = this.templatesGrid.querySelector(`.template-card[data-id="${id}"]`);
+        if (card) {
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.8)';
+            setTimeout(() => card.remove(), 300);
+        }
     }
 }
 

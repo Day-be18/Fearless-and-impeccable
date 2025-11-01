@@ -1,0 +1,2410 @@
+// Модуль для работы с базой данных// Модуль для работы с базой данных
+
+(function() {(function() {
+
+    'use strict';    'use strict';
+
+
+
+    // Конфигурация базы данных    // Конфигурация базы данных
+
+    var DB_CONFIG = {    var DB_CONFIG = {
+
+        name: 'TemplatesDB',        name: 'TemplatesDB',
+
+        version: 1,        version: 1,
+
+        storeName: 'templates',        storeName: 'templates',
+
+        keyPath: 'id'        keyPath: 'id'
+
+    };    };
+
+
+
+    // Генерация уникального ID    // Генерация уникального ID
+
+    function generateId() {    function generateId() {
+
+        return Date.now().toString(36) + Math.random().toString(36).substring(2);        return Date.now().toString(36) + Math.random().toString(36).substring(2);
+
+    }    }
+
+
+
+    // Обновление индикатора синхронизации    // Обновление индикатора синхронизации
+
+    function updateSyncIndicator(state, message) {    function updateSyncIndicator(state, message) {
+
+        var indicator = document.getElementById('syncIndicator');        var indicator = document.getElementById('syncIndicator');
+
+        if (!indicator) return;        if (!indicator) return;
+
+                
+
+        // Сбрасываем классы        // Сбрасываем классы
+
+        indicator.classList.remove('syncing', 'error', 'synced');        indicator.classList.remove('syncing', 'error', 'synced');
+
+                
+
+        var icon = indicator.querySelector('i');        var icon = indicator.querySelector('i');
+
+        var status = indicator.querySelector('.sync-status');        var status = indicator.querySelector('.sync-status');
+
+                
+
+        // Обновляем состояние        // Обновляем состояние
+
+        switch (state) {        switch (state) {
+
+            case 'syncing':            case 'syncing':
+
+                indicator.classList.add('syncing');                indicator.classList.add('syncing');
+
+                icon.className = 'fas fa-sync';                icon.className = 'fas fa-sync';
+
+                status.textContent = 'Синхронизация...';                status.textContent = 'Синхронизация...';
+
+                break;                break;
+
+            case 'error':            case 'error':
+
+                indicator.classList.add('error');                indicator.classList.add('error');
+
+                icon.className = 'fas fa-exclamation-circle';                icon.className = 'fas fa-exclamation-circle';
+
+                status.textContent = message || 'Ошибка синхронизации';                status.textContent = message || 'Ошибка синхронизации';
+
+                break;                break;
+
+            case 'synced':            case 'synced':
+
+                indicator.classList.add('synced');                indicator.classList.add('synced');
+
+                icon.className = 'fas fa-cloud-upload-alt';                icon.className = 'fas fa-cloud-upload-alt';
+
+                status.textContent = 'Синхронизировано';                status.textContent = 'Синхронизировано';
+
+                setTimeout(function() {                setTimeout(function() {
+
+                    if (indicator && icon && status) {                    // Проверяем существование элементов
+
+                        indicator.classList.remove('synced');                    if (indicator && icon && status) {
+
+                        icon.className = 'fas fa-cloud';                        indicator.classList.remove('synced');
+
+                        status.textContent = 'Локально';                        icon.className = 'fas fa-cloud';
+
+                    }                        status.textContent = 'Локально';
+
+                }, 3000);                    }
+
+                break;                }, 3000);
+
+            default:                break;
+
+                icon.className = 'fas fa-cloud';            default:
+
+                status.textContent = 'Локально';                icon.className = 'fas fa-cloud';
+
+        }                status.textContent = 'Локально';
+
+    }        }
+
+    }
+
+    // Конструктор базы данных    
+
+    function TemplateDatabase() {    // Класс для работы с базой данных
+
+        var self = this;    // Конструктор базы данных
+
+            function TemplateDatabase() {
+
+        this.db = null;        this.db = null;
+
+        this.isInitialized = false;        this.isInitialized = false;
+
+        this.useIndexedDB = true;        this.useIndexedDB = true;
+
+        this.supabase = null;        this.supabase = null;
+
+        this.syncEnabled = true;        this.syncEnabled = true;
+
+        this.syncInterval = null;        this.syncInterval = null;
+
+        this.lastSyncTime = null;        this.lastSyncTime = null;
+
+        this.offlineQueue = [];        this.offlineQueue = [];
+
+
+
+        // Привязываем методы к контексту        // Привязываем методы к контексту
+
+        ['init', 'handleOnline', 'handleOffline', 'addTemplate',         var self = this;
+
+         'syncWithSupabase', 'checkSupabaseConnection', 'initIndexedDB',        ['init', 'handleOnline', 'handleOffline', 'addTemplate', 
+
+         'initLocalStorage', 'addToIndexedDB', 'addToLocalStorage',         'syncWithSupabase', 'checkSupabaseConnection', 'initIndexedDB',
+
+         'getAllTemplates', 'getAllFromIndexedDB', 'getAllFromLocalStorage',         'initLocalStorage', 'addToIndexedDB', 'addToLocalStorage',
+
+         'processOfflineOperation', 'addToOfflineQueue', 'forceSyncWithSupabase']         'getAllTemplates', 'getAllFromIndexedDB', 'getAllFromLocalStorage']
+
+        .forEach(function(method) {        .forEach(function(method) {
+
+            self[method] = self[method].bind(self);            self[method] = self[method].bind(self);
+
+        });        });
+
+
+
+        // Инициализация слушателей состояния сети        // Слушаем состояние сети
+
+        if (typeof window !== 'undefined') {        if (typeof window !== 'undefined') {
+
+            window.addEventListener('online', this.handleOnline);            window.addEventListener('online', this.handleOnline);
+
+            window.addEventListener('offline', this.handleOffline);            window.addEventListener('offline', this.handleOffline);
+
+        }        }
+
+
+
+        // Инициализация Supabase        // Инициализируем Supabase
+
+        this.initSupabase();        this.initSupabase();
+
+    }    }
+
+
+
+    // Методы прототипа    // Методы прототипа
+
+    TemplateDatabase.prototype = {    TemplateDatabase.prototype = {
+
+        constructor: TemplateDatabase,        constructor: TemplateDatabase,
+
+
+
+        // Инициализация        // Инициализация
+
+        init: function() {        init: function() {
+
+            var self = this;            var self = this;
+
+                        
+
+            if (this.isInitialized) {            if (this.isInitialized) {
+
+                return Promise.resolve();                return Promise.resolve();
+
+            }            }
+
+
+
+            return new Promise(function(resolve, reject) {            return new Promise(function(resolve, reject) {
+
+                try {                try {
+
+                    if (self.useIndexedDB && 'indexedDB' in window) {                    if (self.useIndexedDB && 'indexedDB' in window) {
+
+                        self.initIndexedDB()                        self.initIndexedDB()
+
+                            .then(function() {                            .then(function() {
+
+                                self.isInitialized = true;                                self.isInitialized = true;
+
+                                console.log('База данных инициализирована (IndexedDB)');                                console.log('База данных инициализирована (IndexedDB)');
+
+                                resolve();                                resolve();
+
+                            })                            })
+
+                            .catch(function(err) {                            .catch(function(err) {
+
+                                console.error('Ошибка IndexedDB:', err);                                console.error('Ошибка IndexedDB:', err);
+
+                                self.useIndexedDB = false;                                self.useIndexedDB = false;
+
+                                self.initLocalStorage();                                self.initLocalStorage();
+
+                                self.isInitialized = true;                                self.isInitialized = true;
+
+                                console.log('База данных инициализирована (localStorage)');                                console.log('База данных инициализирована (localStorage)');
+
+                                resolve();                                resolve();
+
+                            });                            });
+
+                    } else {                    } else {
+
+                        self.useIndexedDB = false;                        self.useIndexedDB = false;
+
+                        self.initLocalStorage();                        self.initLocalStorage();
+
+                        self.isInitialized = true;                        self.isInitialized = true;
+
+                        console.log('База данных инициализирована (localStorage)');                        console.log('База данных инициализирована (localStorage)');
+
+                        resolve();                        resolve();
+
+                    }                    }
+
+                } catch (err) {                } catch (err) {
+
+                    reject(err);                    reject(err);
+
+                }                }
+
+            });            });
+
+        },        },
+
+
+
+        // Инициализация Supabase        // Инициализация Supabase
+
+        initSupabase: function() {        initSupabase: function() {
+
+            var self = this;            var self = this;
+
+            var checkInterval = setInterval(function() {            var checkInterval = setInterval(function() {
+
+                if (window.supabase && !self.supabase) {                if (window.supabase && !self.supabase) {
+
+                    console.log('Обнаружен клиент Supabase');                    console.log('Обнаружен клиент Supabase');
+
+                    self.supabase = window.supabase;                    self.supabase = window.supabase;
+
+                    clearInterval(checkInterval);                    clearInterval(checkInterval);
+
+                    self.onSupabaseInit();                    self.onSupabaseInit();
+
+                }                }
+
+            }, 100);            }, 100);
+
+
+
+            setTimeout(function() {            setTimeout(function() {
+
+                if (checkInterval) {                if (checkInterval) {
+
+                    clearInterval(checkInterval);                    clearInterval(checkInterval);
+
+                    if (!self.supabase) {                    if (!self.supabase) {
+
+                        console.warn('Supabase не был инициализирован за 10 секунд');                        console.warn('Supabase не был инициализирован за 10 секунд');
+
+                    }                    }
+
+                }                }
+
+            }, 10000);            }, 10000);
+
+        },        },
+
+
+
+        // Обработка инициализации Supabase        // Обработка инициализации Supabase
+
+        onSupabaseInit: function() {        onSupabaseInit: function() {
+
+            var self = this;            var self = this;
+
+            this.checkSupabaseConnection()            this.checkSupabaseConnection()
+
+                .then(function(isConnected) {                .then(function(isConnected) {
+
+                    if (isConnected) {                    if (isConnected) {
+
+                        console.log('Подключение к Supabase установлено');                        console.log('Подключение к Supabase установлено');
+
+                        return self.startAutoSync();                        return self.startAutoSync();
+
+                    }                    }
+
+                })                })
+
+                .catch(function(err) {                .catch(function(err) {
+
+                    console.error('Ошибка при инициализации Supabase:', err);                    console.error('Ошибка при инициализации Supabase:', err);
+
+                });                });
+
+        },        },
+
+
+
+        // Инициализация IndexedDB        // Инициализация IndexedDB
+
+        initIndexedDB: function() {        initIndexedDB: function() {
+
+            var self = this;            var self = this;
+
+            return new Promise(function(resolve, reject) {            return new Promise(function(resolve, reject) {
+
+                var request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);                var request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);
+
+                                
+
+                request.onerror = function() {                request.onerror = function() {
+
+                    reject(request.error);                    reject(request.error);
+
+                };                };
+
+                                
+
+                request.onsuccess = function() {                request.onsuccess = function() {
+
+                    self.db = request.result;                    self.db = request.result;
+
+                    resolve();                    resolve();
+
+                };                };
+
+                                
+
+                request.onupgradeneeded = function(event) {                request.onupgradeneeded = function(event) {
+
+                    var db = event.target.result;                    var db = event.target.result;
+
+                    if (!db.objectStoreNames.contains(DB_CONFIG.storeName)) {                    if (!db.objectStoreNames.contains(DB_CONFIG.storeName)) {
+
+                        var store = db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath });                        var store = db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath });
+
+                        store.createIndex('name', 'name', { unique: false });                        store.createIndex('name', 'name', { unique: false });
+
+                        store.createIndex('category', 'category', { unique: false });                        store.createIndex('category', 'category', { unique: false });
+
+                        store.createIndex('dateModified', 'dateModified', { unique: false });                        store.createIndex('dateModified', 'dateModified', { unique: false });
+
+                    }                    }
+
+                };                };
+
+            });            });
+
+        },        },
+
+
+
+        // Инициализация localStorage        // Инициализация localStorage
+
+        initLocalStorage: function() {        initLocalStorage: function() {
+
+            if (!localStorage.getItem('templates')) {            if (!localStorage.getItem('templates')) {
+
+                localStorage.setItem('templates', JSON.stringify([]));                localStorage.setItem('templates', JSON.stringify([]));
+
+            }            }
+
+        },        },
+
+
+
+        // Проверка подключения к Supabase        // Проверка подключения к Supabase
+
+        checkSupabaseConnection: function() {        checkSupabaseConnection: function() {
+
+            var self = this;            var self = this;
+
+                        
+
+            if (!this.supabase) {            if (!this.supabase) {
+
+                console.warn('Supabase не инициализирован');                console.warn('Supabase не инициализирован');
+
+                return Promise.resolve(false);                return Promise.resolve(false);
+
+            }            }
+
+
+
+            return this.supabase            return this.supabase
+
+                .from('templates')                .from('templates')
+
+                .select('id')                .select('id')
+
+                .limit(1)                .limit(1)
+
+                .then(function(response) {                .then(function(response) {
+
+                    if (response.error) {                    if (response.error) {
+
+                        if (response.error.code === '404' || response.error.code === 'PGRST116') {                        if (response.error.code === '404' || response.error.code === 'PGRST116') {
+
+                            return self.createSupabaseTable();                            return self.createSupabaseTable();
+
+                        }                        }
+
+                        throw response.error;                        throw response.error;
+
+                    }                    }
+
+                    return true;                    return true;
+
+                })                })
+
+                .catch(function(err) {                .catch(function(err) {
+
+                    console.error('Ошибка проверки Supabase:', err);                    console.error('Ошибка проверки Supabase:', err);
+
+                    return false;                    return false;
+
+                });                });
+
+        },        },
+
+
+
+        // Обработчик восстановления соединения        // Обработчик восстановления соединения
+
+        handleOnline: function() {        handleOnline: function() {
+
+            var self = this;            var self = this;
+
+            console.log('Соединение восстановлено');            console.log('Соединение восстановлено');
+
+            updateSyncIndicator('syncing');            
+
+                        this.syncWithSupabase()
+
+            this.checkSupabaseConnection()                .catch(function(err) {
+
+                .then(function(isConnected) {                    console.error('Ошибка синхронизации после восстановления:', err);
+
+                    if (!isConnected) {                });
+
+                        updateSyncIndicator('error', 'Нет подключения к облаку');        },
+
+                        return Promise.reject(new Error('Нет подключения к Supabase'));
+
+                    }        // Обработчик потери соединения
+
+                    return self.forceSyncWithSupabase();        handleOffline: function() {
+
+                })            console.log('Соединение потеряно');
+
+                .then(function() {            updateSyncIndicator('error', 'Нет подключения');
+
+                    // Обрабатываем очередь офлайн-операций            
+
+                    return self.processOfflineQueue();            if (this.syncInterval) {
+
+                })                clearInterval(this.syncInterval);
+
+                .catch(function(err) {                this.syncInterval = null;
+
+                    console.error('Ошибка при обработке восстановления соединения:', err);            }
+
+                    updateSyncIndicator('error', 'Ошибка синхронизации');        },
+
+                });
+
+        },        // Добавление шаблона
+
+        addTemplate: function(template) {
+
+        // Обработчик потери соединения            var self = this;
+
+        handleOffline: function() {            return this.ensureInitialized()
+
+            console.log('Соединение потеряно');                .then(function() {
+
+            updateSyncIndicator('error', 'Нет подключения');                    var newTemplate = {
+
+                                    id: template.id || generateId(),
+
+            if (this.syncInterval) {                        name: template.name,
+
+                clearInterval(this.syncInterval);                        category: template.category || '',
+
+                this.syncInterval = null;                        content: template.content,
+
+            }                        dateCreated: template.dateCreated || new Date().toISOString(),
+
+        },                        dateModified: new Date().toISOString(),
+
+                        favorite: template.favorite || false
+
+        // Обработка офлайн-операций                    };
+
+        processOfflineQueue: function() {
+
+            var self = this;                    return self.useIndexedDB ? 
+
+                                    self.addToIndexedDB(newTemplate) : 
+
+            if (this.offlineQueue.length === 0) {                        Promise.resolve(self.addToLocalStorage(newTemplate));
+
+                return Promise.resolve();                });
+
+            }        },
+
+
+
+            function processNext() {        // Добавление в IndexedDB
+
+                if (self.offlineQueue.length === 0) {        addToIndexedDB: function(template) {
+
+                    return Promise.resolve();            var self = this;
+
+                }            return new Promise(function(resolve, reject) {
+
+                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readwrite');
+
+                var operation = self.offlineQueue[0];                var store = transaction.objectStore(DB_CONFIG.storeName);
+
+                return self.processOfflineOperation(operation)                var request = store.add(template);
+
+                    .then(function() {                
+
+                        self.offlineQueue.shift(); // Удаляем обработанную операцию                request.onerror = function() {
+
+                        return processNext(); // Обрабатываем следующую                    reject(request.error);
+
+                    })                };
+
+                    .catch(function(err) {                
+
+                        console.error('Ошибка обработки офлайн-операции:', err);                request.onsuccess = function() {
+
+                        return Promise.reject(err);                    resolve(template);
+
+                    });                };
+
+            }            });
+
+        },
+
+            return processNext();
+
+        },        // Добавление в localStorage
+
+        addToLocalStorage: function(template) {
+
+        // Обработка одной офлайн-операции            var templates = this.getAllFromLocalStorage();
+
+        processOfflineOperation: function(operation) {            templates.push(template);
+
+            var self = this;            localStorage.setItem('templates', JSON.stringify(templates));
+
+                        return template;
+
+            switch (operation.type) {        },
+
+                case 'add':
+
+                    return self.addToSupabase(operation.data);        // Получение всех шаблонов
+
+                case 'update':        getAllTemplates: function() {
+
+                    return self.updateInSupabase(operation.data);            var self = this;
+
+                case 'delete':            return this.ensureInitialized()
+
+                    return self.deleteFromSupabase(operation.id);                .then(function() {
+
+                default:                    return self.useIndexedDB ? 
+
+                    return Promise.reject(new Error('Неизвестный тип операции'));                        self.getAllFromIndexedDB() : 
+
+            }                        Promise.resolve(self.getAllFromLocalStorage());
+
+        },                });
+
+        },
+
+        // Добавление операции в офлайн-очередь
+
+        addToOfflineQueue: function(type, data) {        // Получение из IndexedDB
+
+            this.offlineQueue.push({        getAllFromIndexedDB: function() {
+
+                type: type,            var self = this;
+
+                data: data,            return new Promise(function(resolve, reject) {
+
+                timestamp: Date.now()                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readonly');
+
+            });                var store = transaction.objectStore(DB_CONFIG.storeName);
+
+        },                var request = store.getAll();
+
+                
+
+        // Синхронизация с Supabase                request.onerror = function() {
+
+        syncWithSupabase: function(force) {                    reject(request.error);
+
+            var self = this;                };
+
+                            
+
+            if ((!this.syncEnabled || !this.supabase) && !force) {                request.onsuccess = function() {
+
+                return Promise.resolve();                    resolve(request.result || []);
+
+            }                };
+
+            });
+
+            return new Promise(function(resolve, reject) {        },
+
+                try {
+
+                    var now = Date.now();        // Получение из localStorage
+
+                    if (!force && self.lastSyncTime && (now - self.lastSyncTime < 30000)) {        getAllFromLocalStorage: function() {
+
+                        return resolve(); // Пропускаем слишком частую синхронизацию            var templates = localStorage.getItem('templates');
+
+                    }            return templates ? JSON.parse(templates) : [];
+
+        },
+
+                    updateSyncIndicator('syncing');
+
+        // Создание таблицы в Supabase
+
+                    self.getAllTemplates()        createSupabaseTable: function() {
+
+                        .then(function(localTemplates) {            return this.supabase.rpc('init_templates_table')
+
+                            return self.supabase                .then(function() {
+
+                                .from('templates')                    console.log('Таблица templates создана');
+
+                                .select('*')                    return true;
+
+                                .then(function(response) {                })
+
+                                    if (response.error) {                .catch(function(err) {
+
+                                        throw response.error;                    console.error('Ошибка создания таблицы:', err);
+
+                                    }                    return false;
+
+                });
+
+                                    var remoteTemplates = response.data;        },
+
+                                    var promises = [];
+
+        // Запуск автоматической синхронизации
+
+                                    // Создаём Map для быстрого поиска        startAutoSync: function(interval) {
+
+                                    var localMap = {};            var self = this;
+
+                                    localTemplates.forEach(function(t) {            interval = interval || 300000; // 5 минут
+
+                                        localMap[t.id] = t;            
+
+                                    });            if (this.syncInterval) {
+
+                clearInterval(this.syncInterval);
+
+                                    var remoteMap = {};            }
+
+                                    remoteTemplates.forEach(function(t) {
+
+                                        remoteMap[t.id] = t;            function sync() {
+
+                                    });                if (!navigator.onLine) {
+
+                    updateSyncIndicator('error', 'Нет подключения');
+
+                                    // Обновляем локальные данные из облака                    return;
+
+                                    remoteTemplates.forEach(function(remote) {                }
+
+                                        var local = localMap[remote.id];
+
+                                        if (!local || new Date(remote.dateModified) > new Date(local.dateModified)) {                self.checkSupabaseConnection()
+
+                                            promises.push(self.addTemplate(remote));                    .then(function(isConnected) {
+
+                                        }                        if (!isConnected) {
+
+                                    });                            updateSyncIndicator('error', 'Нет доступа к облаку');
+
+                            return;
+
+                                    // Отправляем локальные изменения в облако                        }
+
+                                    localTemplates.forEach(function(local) {                        return self.syncWithSupabase();
+
+                                        var remote = remoteMap[local.id];                    })
+
+                                        if (!remote || new Date(local.dateModified) > new Date(remote.dateModified)) {                    .catch(function(err) {
+
+                                            promises.push(                        console.error('Ошибка синхронизации:', err);
+
+                                                self.supabase                        updateSyncIndicator('error', err.message);
+
+                                                    .from('templates')                    });
+
+                                                    .upsert([local])            }
+
+                                                    .then(function(response) {
+
+                                                        if (response.error) throw response.error;            sync();
+
+                                                    })            this.syncInterval = setInterval(sync, interval);
+
+                                            );        },
+
+                                        }
+
+                                    });        // Синхронизация с Supabase
+
+        syncWithSupabase: function() {
+
+                                    return Promise.all(promises);            var self = this;
+
+                                });            
+
+                        })            if (!this.supabase || !this.syncEnabled) {
+
+                        .then(function() {                return Promise.resolve();
+
+                            self.lastSyncTime = now;            }
+
+                            updateSyncIndicator('synced');
+
+                            resolve();            updateSyncIndicator('syncing');
+
+                        })
+
+                        .catch(function(error) {            return this.getAllTemplates()
+
+                            console.error('Ошибка синхронизации:', error);                .then(function(localTemplates) {
+
+                            updateSyncIndicator('error', error.message);                    return self.supabase
+
+                            reject(error);                        .from('templates')
+
+                        });                        .select('*')
+
+                } catch (err) {                        .then(function(response) {
+
+                    console.error('Ошибка в процессе синхронизации:', err);                            if (response.error) throw response.error;
+
+                    updateSyncIndicator('error', err.message);
+
+                    reject(err);                            var remoteTemplates = response.data;
+
+                }                            var promises = [];
+
+            });
+
+        },                            remoteTemplates.forEach(function(remote) {
+
+                                var local = localTemplates.find(function(t) {
+
+        // Принудительная синхронизация                                    return t.id === remote.id;
+
+        forceSyncWithSupabase: function() {                                });
+
+            return this.syncWithSupabase(true);
+
+        },                                if (!local || new Date(remote.dateModified) > new Date(local.dateModified)) {
+
+                                    promises.push(self.addTemplate(remote));
+
+        // Проверка подключения к Supabase                                }
+
+        checkSupabaseConnection: function() {                            });
+
+            var self = this;
+
+                                        return Promise.all(promises);
+
+            if (!this.supabase) {                        });
+
+                console.warn('Нет инстанса Supabase');                })
+
+                return Promise.resolve(false);                .then(function() {
+
+            }                    updateSyncIndicator('synced');
+
+                })
+
+            if (!navigator.onLine) {                .catch(function(error) {
+
+                console.warn('Нет подключения к интернету');                    console.error('Ошибка синхронизации:', error);
+
+                return Promise.resolve(false);                    updateSyncIndicator('error');
+
+            }                    throw error;
+
+                });
+
+            console.log('Проверка подключения к Supabase');        }
+
+            return this.supabase
+
+                .from('templates')            // Наблюдаем за изменениями window.supabase
+
+                .select('id')            let checkSupabaseInterval = setInterval(() => {
+
+                .limit(1)                if (window.supabase && !this.supabase) {
+
+                .then(function(response) {                    console.log('Обнаружен инициализированный Supabase клиент');
+
+                    if (response.error) {                    this.supabase = window.supabase;
+
+                        if (response.error.code === '404' || response.error.code === 'PGRST116') {                    clearInterval(checkSupabaseInterval);
+
+                            // Таблица не существует, пробуем создать                    this.onSupabaseInitialized();
+
+                            return self.supabase.rpc('init_templates_table')                }
+
+                                .then(function() {            }, 100);
+
+                                    console.log('Таблица успешно создана');
+
+                                    return true;            // Очищаем интервал через 10 секунд если Supabase не появился
+
+                                })            setTimeout(() => {
+
+                                .catch(function(initError) {                if (checkSupabaseInterval) {
+
+                                    console.error('Не удалось создать таблицу:', initError);                    clearInterval(checkSupabaseInterval);
+
+                                    return false;                    if (!this.supabase) {
+
+                                });                        console.warn('Supabase не был инициализирован в течение 10 секунд');
+
+                        }                    }
+
+                        throw response.error;                }
+
+                    }            }, 10000);
+
+                    return true;            
+
+                })            // Определяем метод инициализации Supabase
+
+                .catch(function(err) {            this.onSupabaseInitialized = async () => {
+
+                    console.error('Ошибка проверки подключения к Supabase:', err);                console.log('Начало обработки инициализации Supabase');
+
+                    return false;                if (this.syncEnabled) {
+
+                });                    try {
+
+        },                        const isConnected = await this.checkSupabaseConnection();
+
+                        if (isConnected) {
+
+        // Запуск автоматической синхронизации                            console.log('Подключение к Supabase установлено, запускаем синхронизацию');
+
+        startAutoSync: function(interval) {                            await this.startAutoSync();
+
+            var self = this;                        } else {
+
+            interval = interval || 300000; // 5 минут по умолчанию                            console.warn('Не удалось подключиться к Supabase');
+
+                                        updateSyncIndicator('error', 'Нет подключения к облаку');
+
+            if (this.syncInterval) {                            // Повторная попытка через 30 секунд
+
+                clearInterval(this.syncInterval);                            setTimeout(() => this.onSupabaseInitialized(), 30000);
+
+            }                        }
+
+                    } catch (err) {
+
+            function sync() {                        console.error('Ошибка при обработке инициализации Supabase:', err);
+
+                if (!navigator.onLine) {                        updateSyncIndicator('error', 'Ошибка подключения');
+
+                    updateSyncIndicator('error', 'Нет подключения');                    }
+
+                    return;                }
+
+                }            };
+
+
+
+                self.checkSupabaseConnection()            // Пытаемся сразу получить Supabase клиент
+
+                    .then(function(isConnected) {            if (window.supabase) {
+
+                        if (!isConnected) {                console.log('Supabase клиент уже доступен при создании TemplateDatabase');
+
+                            updateSyncIndicator('error', 'Нет доступа к облаку');                this.supabase = window.supabase;
+
+                            return;                this.onSupabaseInitialized();
+
+                        }            } else {
+
+                        return self.syncWithSupabase();                console.log('Ожидание инициализации Supabase...');
+
+                    })
+
+                    .catch(function(err) {                // Пробуем создать клиента самостоятельно
+
+                        console.error('Ошибка синхронизации:', err);                if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+
+                        updateSyncIndicator('error', err.message);                    import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm')
+
+                    });                        .then(({ createClient }) => {
+
+            }                            try {
+
+                                if (!window.supabase) {
+
+            // Выполняем начальную синхронизацию                                    console.log('Создаем клиента Supabase самостоятельно...');
+
+            sync();                                    window.supabase = createClient(
+
+                                                    window.SUPABASE_URL,
+
+            // Устанавливаем интервал                                        window.SUPABASE_ANON_KEY
+
+            this.syncInterval = setInterval(sync, interval);                                    );
+
+                                    this.supabase = window.supabase;
+
+            // Добавляем обработчик для синхронизации при восстановлении соединения                                    this.handleSupabaseInitialization();
+
+            window.addEventListener('online', function() {                                }
+
+                console.log('Соединение восстановлено, запускаем синхронизацию...');                            } catch (err) {
+
+                sync();                                console.error('Ошибка при создании клиента Supabase:', err);
+
+            });                            }
+
+        },                        })
+
+                        .catch(err => {
+
+        // Остановка автоматической синхронизации                            console.error('Ошибка при импорте Supabase:', err);
+
+        stopAutoSync: function() {                        });
+
+            if (this.syncInterval) {                } else {
+
+                clearInterval(this.syncInterval);                    console.warn('Отсутствуют данные для подключения к Supabase:', {
+
+                this.syncInterval = null;                        url: window.SUPABASE_URL,
+
+                console.log('Автоматическая синхронизация остановлена');                        hasKey: !!window.SUPABASE_ANON_KEY
+
+            }                    });
+
+        },                }
+
+
+
+        // Добавление шаблона                // Очищаем интервал через 10 секунд если Supabase не появился
+
+        addTemplate: function(template) {                setTimeout(() => {
+
+            var self = this;                    if (checkSupabaseInterval) {
+
+            return this.ensureInitialized()                        clearInterval(checkSupabaseInterval);
+
+                .then(function() {                        if (!this.supabase) {
+
+                    var newTemplate = {                            console.error('Supabase не был инициализирован в течение 10 секунд');
+
+                        id: template.id || generateId(),                        }
+
+                        name: template.name,                    }
+
+                        category: template.category || '',                }, 10000);
+
+                        content: template.content,            }
+
+                        dateCreated: template.dateCreated || new Date().toISOString(),
+
+                        dateModified: new Date().toISOString(),            // Проверка инициализации Supabase
+
+                        favorite: template.favorite || false            console.log('Состояние Supabase при инициализации:', {
+
+                    };                supabaseAvailable: !!this.supabase,
+
+                windowSupabase: !!window.supabase,
+
+                    return self.useIndexedDB ?                 supabaseUrl: window.SUPABASE_URL,
+
+                        self.addToIndexedDB(newTemplate) :                 hasAnonKey: !!window.SUPABASE_ANON_KEY
+
+                        Promise.resolve(self.addToLocalStorage(newTemplate));            });
+
+                });
+
+        },            // Слушаем состояние сети
+
+            if (typeof window !== 'undefined') {
+
+        // Добавление в IndexedDB                window.addEventListener('online', this.handleOnline.bind(this));
+
+        addToIndexedDB: function(template) {                window.addEventListener('offline', this.handleOffline.bind(this));
+
+            var self = this;            }
+
+            return new Promise(function(resolve, reject) {        }
+
+                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readwrite');        
+
+                var store = transaction.objectStore(DB_CONFIG.storeName);        // Обработчик восстановления соединения
+
+                var request = store.add(template);        async handleOnline() {
+
+                            console.log('Соединение восстановлено');
+
+                request.onerror = function() {            updateSyncIndicator('syncing');
+
+                    reject(request.error);            
+
+                };            try {
+
+                                // Проверяем подключение к Supabase
+
+                request.onsuccess = function() {                const isConnected = await this.checkSupabaseConnection();
+
+                    resolve(template);                if (!isConnected) {
+
+                };                    updateSyncIndicator('error', 'Нет подключения к облаку');
+
+            });                    return;
+
+        },                }
+
+
+
+        // Добавление в localStorage                // Запускаем синхронизацию
+
+        addToLocalStorage: function(template) {                await this.forceSyncWithSupabase();
+
+            var templates = this.getAllFromLocalStorage();                
+
+            templates.push(template);                // Обрабатываем очередь офлайн-операций
+
+            localStorage.setItem('templates', JSON.stringify(templates));                while (this.offlineQueue.length > 0) {
+
+            return template;                    const operation = this.offlineQueue.shift();
+
+        },                    try {
+
+                        await this.processOfflineOperation(operation);
+
+        // Получение всех шаблонов                    } catch (err) {
+
+        getAllTemplates: function() {                        console.error('Ошибка обработки офлайн-операции:', err);
+
+            var self = this;                        this.offlineQueue.unshift(operation); // Возвращаем операцию в очередь
+
+            return this.ensureInitialized()                        break;
+
+                .then(function() {                    }
+
+                    return self.useIndexedDB ?                 }
+
+                        self.getAllFromIndexedDB() :             } catch (err) {
+
+                        Promise.resolve(self.getAllFromLocalStorage());                console.error('Ошибка при обработке восстановления соединения:', err);
+
+                });                updateSyncIndicator('error', 'Ошибка синхронизации');
+
+        },            }
+
+        }
+
+        // Получение из IndexedDB        
+
+        getAllFromIndexedDB: function() {        // Обработчик потери соединения
+
+            var self = this;        handleOffline() {
+
+            return new Promise(function(resolve, reject) {            console.log('Соединение потеряно');
+
+                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readonly');            updateSyncIndicator('error', 'Нет подключения');
+
+                var store = transaction.objectStore(DB_CONFIG.storeName);            if (this.syncInterval) {
+
+                var request = store.getAll();                clearInterval(this.syncInterval);
+
+                                this.syncInterval = null;
+
+                request.onerror = function() {            }
+
+                    reject(request.error);        }
+
+                };        
+
+                        // Обработка офлайн-операции
+
+                request.onsuccess = function() {        async processOfflineOperation(operation) {
+
+                    resolve(request.result || []);            switch (operation.type) {
+
+                };                case 'add':
+
+            });                    await this.addToSupabase(operation.data);
+
+        },                    break;
+
+                case 'update':
+
+        // Получение из localStorage                    await this.updateInSupabase(operation.data);
+
+        getAllFromLocalStorage: function() {                    break;
+
+            var templates = localStorage.getItem('templates');                case 'delete':
+
+            return templates ? JSON.parse(templates) : [];                    await this.deleteFromSupabase(operation.id);
+
+        },                    break;
+
+            }
+
+        // Обновление шаблона        }
+
+        updateTemplate: function(template) {        
+
+            var self = this;        // Добавление операции в офлайн-очередь
+
+            return this.ensureInitialized()        addToOfflineQueue(type, data) {
+
+                .then(function() {            this.offlineQueue.push({ type, data, timestamp: Date.now() });
+
+                    var updatedTemplate = {        }
+
+                        id: template.id,
+
+                        name: template.name,        // Метод для синхронизации с Supabase
+
+                        category: template.category || '',        async syncWithSupabase(force = false) {
+
+                        content: template.content,            if ((!this.syncEnabled || !this.supabase) && !force) return;
+
+                        dateCreated: template.dateCreated,
+
+                        dateModified: new Date().toISOString(),            try {
+
+                        favorite: template.favorite || false                const now = Date.now();
+
+                    };                // Проверяем, прошло ли достаточно времени с последней синхронизации
+
+                if (!force && this.lastSyncTime && (now - this.lastSyncTime < 30000)) { // 30 секунд
+
+                    return self.useIndexedDB ?                    console.log('Пропуск синхронизации: слишком частые запросы');
+
+                        self.updateInIndexedDB(updatedTemplate) :                    return;
+
+                        Promise.resolve(self.updateInLocalStorage(updatedTemplate));                }
+
+                });
+
+        },                updateSyncIndicator('syncing');
+
+
+
+        // Обновление в IndexedDB                // Получаем все локальные шаблоны
+
+        updateInIndexedDB: function(template) {                const localTemplates = await this.getAllTemplates();
+
+            var self = this;                
+
+            return new Promise(function(resolve, reject) {                // Получаем все шаблоны из Supabase
+
+                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readwrite');                const { data: remoteTemplates, error } = await this.supabase
+
+                var store = transaction.objectStore(DB_CONFIG.storeName);                    .from('templates')
+
+                var request = store.put(template);                    .select('*');
+
+                
+
+                request.onerror = function() {                if (error) {
+
+                    reject(request.error);                    if (error.code === '404' || error.code === 'PGRST116') {
+
+                };                        // Таблица не существует, создаём и синхронизируем локальные данные
+
+                                        await this.supabase.rpc('init_templates_table');
+
+                request.onsuccess = function() {                        const localTemplates = await this.getAllTemplates();
+
+                    resolve(template);                        if (localTemplates.length > 0) {
+
+                };                            const { error: insertError } = await this.supabase
+
+            });                                .from('templates')
+
+        },                                .insert(localTemplates);
+
+                            if (insertError) throw insertError;
+
+        // Обновление в localStorage                        }
+
+        updateInLocalStorage: function(template) {                        return;
+
+            var templates = this.getAllFromLocalStorage();                    }
+
+            var index = templates.findIndex(function(t) { return t.id === template.id; });                    throw error;
+
+                            }
+
+            if (index !== -1) {
+
+                templates[index] = template;                // Создаём Map для быстрого поиска
+
+                localStorage.setItem('templates', JSON.stringify(templates));                const localMap = new Map(localTemplates.map(t => [t.id, t]));
+
+                return template;                const remoteMap = new Map(remoteTemplates.map(t => [t.id, t]));
+
+            }
+
+                            // Синхронизация: обновляем локальные данные
+
+            throw new Error('Шаблон не найден');                for (const [id, remoteTemplate] of remoteMap) {
+
+        },                    const localTemplate = localMap.get(id);
+
+                    if (!localTemplate) {
+
+        // Удаление шаблона                        // Добавляем отсутствующие локально
+
+        deleteTemplate: function(id) {                        await this.addTemplate(remoteTemplate);
+
+            var self = this;                        console.log('Синхронизирован из облака:', remoteTemplate.name);
+
+            return this.ensureInitialized()                    } else if (new Date(remoteTemplate.dateModified) > new Date(localTemplate.dateModified)) {
+
+                .then(function() {                        // Обновляем если удаленная версия новее
+
+                    return self.useIndexedDB ?                        await this.updateTemplate(remoteTemplate);
+
+                        self.deleteFromIndexedDB(id) :                        console.log('Обновлен из облака:', remoteTemplate.name);
+
+                        Promise.resolve(self.deleteFromLocalStorage(id));                    }
+
+                });                }
+
+        },
+
+                // Синхронизация: отправляем локальные изменения
+
+        // Удаление из IndexedDB                for (const [id, localTemplate] of localMap) {
+
+        deleteFromIndexedDB: function(id) {                    const remoteTemplate = remoteMap.get(id);
+
+            var self = this;                    if (!remoteTemplate) {
+
+            return new Promise(function(resolve, reject) {                        // Отправляем отсутствующие в облаке
+
+                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readwrite');                        const { error } = await this.supabase
+
+                var store = transaction.objectStore(DB_CONFIG.storeName);                            .from('templates')
+
+                var request = store.delete(id);                            .insert([localTemplate]);
+
+                                        if (error) {
+
+                request.onerror = function() {                            console.warn('Ошибка синхронизации с облаком:', error);
+
+                    reject(request.error);                        } else {
+
+                };                            console.log('Отправлен в облако:', localTemplate.name);
+
+                                        }
+
+                request.onsuccess = function() {                    } else if (new Date(localTemplate.dateModified) > new Date(remoteTemplate.dateModified)) {
+
+                    resolve(true);                        // Обновляем если локальная версия новее
+
+                };                        const { error } = await this.supabase
+
+            });                            .from('templates')
+
+        },                            .update(localTemplate)
+
+                            .eq('id', id);
+
+        // Удаление из localStorage                        if (error) {
+
+        deleteFromLocalStorage: function(id) {                            console.warn('Ошибка обновления в облаке:', error);
+
+            var templates = this.getAllFromLocalStorage();                        } else {
+
+            var filteredTemplates = templates.filter(function(t) { return t.id !== id; });                            console.log('Обновлен в облаке:', localTemplate.name);
+
+            localStorage.setItem('templates', JSON.stringify(filteredTemplates));                        }
+
+            return true;                    }
+
+        },                }
+
+
+
+        // Проверка инициализации                this.lastSyncTime = now;
+
+        ensureInitialized: function() {                console.info('Синхронизация завершена успешно');
+
+            var self = this;                updateSyncIndicator('synced');
+
+            if (!this.isInitialized) {            } catch (err) {
+
+                return this.init();                console.error('Ошибка синхронизации:', err);
+
+            }                updateSyncIndicator('error', err.message);
+
+            return Promise.resolve();                throw err; // Пробрасываем ошибку для обработки выше
+
+        },            }
+
+        }
+
+        // Получение статистики
+
+        getStats: function() {        // Принудительная синхронизация
+
+            var self = this;        async forceSyncWithSupabase() {
+
+            return this.getAllTemplates()            try {
+
+                .then(function(templates) {                await this.syncWithSupabase(true);
+
+                    return {                return true;
+
+                        total: templates.length,            } catch (err) {
+
+                        favorites: templates.filter(function(t) { return t.favorite; }).length,                console.error('Ошибка принудительной синхронизации:', err);
+
+                        categories: [...new Set(templates.map(function(t) { return t.category; }).filter(Boolean))].length,                return false;
+
+                        storageType: self.useIndexedDB ? 'IndexedDB' : 'localStorage'            }
+
+                    };        }
+
+                });        
+
+        }        // Проверка подключения к Supabase
+
+    };        async checkSupabaseConnection() {
+
+            console.log('Проверка подключения к Supabase:', {
+
+    // Создаём и инициализируем экземпляр базы данных при загрузке страницы                hasInstance: !!this.supabase,
+
+    function createAndInitDatabase() {                hasWindowSupabase: !!window.supabase,
+
+        var db = new TemplateDatabase();                url: this.supabase?.supabaseUrl || window.SUPABASE_URL,
+
+        window.TemplateDB = db;                hasKey: !!window.SUPABASE_ANON_KEY,
+
+        return db.init().then(function() {                online: navigator.onLine
+
+            console.log('База данных успешно инициализирована');            });
+
+        }).catch(function(err) {
+
+            console.error('Ошибка при инициализации базы данных:', err);            if (!this.supabase) {
+
+        });                console.warn('Нет инстанса Supabase');
+
+    }                return false;
+
+            }
+
+    if (document.readyState === 'loading') {
+
+        document.addEventListener('DOMContentLoaded', createAndInitDatabase);            if (!navigator.onLine) {
+
+    } else {                console.warn('Нет подключения к интернету');
+
+        createAndInitDatabase();                return false;
+
+    }            }
+
+})();
+            try {
+                console.log('Отправка тестового запроса к Supabase...');
+                const { data, error } = await this.supabase
+                    .from('templates')
+                    .select('id')
+                    .limit(1)
+                    .maybeSingle();
+                
+                if (error) {
+                    if (error.code === '404' || error.code === 'PGRST116') {
+                        if (window.ENABLE_SUPABASE_DEBUG) {
+                            console.log('Таблица не существует, пробуем создать');
+                        }
+                        // Таблица не существует, попробуем создать
+                        try {
+                            await this.supabase.rpc('init_templates_table');
+                            if (window.ENABLE_SUPABASE_DEBUG) {
+                                console.log('Таблица успешно создана');
+                            }
+                            return true;
+                        } catch (initError) {
+                            console.error('Не удалось создать таблицу:', {
+                                error: initError,
+                                code: initError.code,
+                                details: initError.details
+                            });
+                            return false;
+                        }
+                    }
+
+                    if (window.ENABLE_SUPABASE_DEBUG) {
+                        console.error('Ошибка при проверке подключения:', {
+                            error,
+                            code: error.code,
+                            message: error.message,
+                            details: error.details
+                        });
+                    }
+                    throw error;
+                }
+
+                if (window.ENABLE_SUPABASE_DEBUG) {
+                    console.log('Успешная проверка подключения:', {
+                        data,
+                        tableExists: true
+                    });
+                }
+                return true;
+            } catch (err) {
+                if (err.message?.includes('Failed to fetch')) {
+                    console.warn('Supabase недоступен:', {
+                        error: err,
+                        message: err.message,
+                        online: navigator.onLine,
+                        url: this.supabase?.supabaseUrl
+                    });
+                } else {
+                    console.error('Ошибка проверки подключения к Supabase:', {
+                        error: err,
+                        message: err.message,
+                        stack: err.stack,
+                        supabaseState: {
+                            url: this.supabase?.supabaseUrl,
+                            initialized: !!this.supabase
+                        }
+                    });
+                }
+                return false;
+            }
+        }
+
+        // Инициализация базы данных
+        async init() {
+            if (this.isInitialized) return;
+            
+            try {
+                // Пробуем использовать IndexedDB
+                if (this.useIndexedDB && 'indexedDB' in window) {
+                    await this.initIndexedDB();
+                } else {
+                    // Fallback на localStorage
+                    this.useIndexedDB = false;
+                    this.initLocalStorage();
+                }
+                
+                this.isInitialized = true;
+                console.log('База данных инициализирована:', this.useIndexedDB ? 'IndexedDB' : 'localStorage');
+                
+                // Проверяем подключение к Supabase и запускаем синхронизацию
+                if (this.supabase && this.syncEnabled) {
+                    if (window.ENABLE_SUPABASE_DEBUG) {
+                        console.log('Инициализация Supabase:', {
+                            supabaseInstance: !!this.supabase,
+                            url: this.supabase?.supabaseUrl,
+                            anon_key_length: window.SUPABASE_ANON_KEY?.length || 0,
+                            syncEnabled: this.syncEnabled,
+                            online: navigator.onLine
+                        });
+                    }
+                    
+                    const isConnected = await this.checkSupabaseConnection();
+                    if (isConnected) {
+                        console.log('Успешное подключение к Supabase');
+                        await this.startAutoSync();
+                    } else {
+                        console.warn('Нет подключения к Supabase');
+                        updateSyncIndicator('error', 'Нет подключения к облаку');
+                        // Повторная попытка подключения через 30 секунд
+                        setTimeout(async () => {
+                            if (window.ENABLE_SUPABASE_DEBUG) {
+                                console.log('Повторная попытка подключения к Supabase');
+                            }
+                            const retryConnection = await this.checkSupabaseConnection();
+                            if (retryConnection) {
+                                console.log('Успешное повторное подключение к Supabase');
+                                await this.startAutoSync();
+                            } else {
+                                console.warn('Повторная попытка подключения не удалась');
+                            }
+                        }, 30000);
+                    }
+                } else {
+                    if (window.ENABLE_SUPABASE_DEBUG) {
+                        console.warn('Supabase не инициализирован:', {
+                            supabaseInstance: !!this.supabase,
+                            syncEnabled: this.syncEnabled
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка при инициализации базы данных:', error);
+                // Fallback на localStorage
+                this.useIndexedDB = false;
+                this.initLocalStorage();
+                this.isInitialized = true;
+                updateSyncIndicator('error', 'Ошибка инициализации');
+            }
+        }
+        
+        // Запуск автоматической синхронизации
+        async startAutoSync(interval = 5 * 60 * 1000) { // По умолчанию каждые 5 минут
+            if (this.syncInterval) {
+                clearInterval(this.syncInterval);
+            }
+            
+            const sync = async () => {
+                if (!navigator.onLine) {
+                    updateSyncIndicator('error', 'Нет подключения');
+                    return;
+                }
+
+                try {
+                    const isConnected = await this.checkSupabaseConnection();
+                    if (!isConnected) {
+                        updateSyncIndicator('error', 'Нет доступа к облаку');
+                        return;
+                    }
+
+                    await this.syncWithSupabase();
+                    this.lastSyncTime = Date.now();
+                } catch (err) {
+                    console.error('Ошибка синхронизации:', err);
+                    updateSyncIndicator('error', err.message || 'Ошибка синхронизации');
+                }
+            };
+            
+            // Выполняем первичную синхронизацию
+            await sync();
+            
+            // Устанавливаем интервал для регулярной синхронизации
+            this.syncInterval = setInterval(sync, interval);
+            
+            // Добавляем обработчик для синхронизации при восстановлении соединения
+            window.addEventListener('online', () => {
+                console.log('Соединение восстановлено, запускаем синхронизацию...');
+                sync();
+            });
+            
+            console.log('Автоматическая синхронизация активирована');
+        }
+
+        // Добавление в Supabase
+        async addToSupabase(template) {
+            if (!this.supabase) return;
+            try {
+                const { error } = await this.supabase
+                    .from('templates')
+                    .insert([template])
+                    .select();
+
+                if (error) {
+                    if (error.code === '404' || error.code === 'PGRST116') {
+                        await this.supabase.rpc('init_templates_table');
+                        return await this.addToSupabase(template);
+                    }
+                    throw error;
+                }
+            } catch (err) {
+                console.error('Ошибка добавления в Supabase:', err);
+                this.addToOfflineQueue('add', template);
+                throw err;
+            }
+        }
+
+        // Обновление в Supabase
+        async updateInSupabase(template) {
+            if (!this.supabase) return;
+            try {
+                const { error } = await this.supabase
+                    .from('templates')
+                    .update(template)
+                    .eq('id', template.id)
+                    .select();
+
+                if (error) {
+                    if (error.code === '404' || error.code === 'PGRST116') {
+                        await this.supabase.rpc('init_templates_table');
+                        return await this.updateInSupabase(template);
+                    }
+                    throw error;
+                }
+            } catch (err) {
+                console.error('Ошибка обновления в Supabase:', err);
+                this.addToOfflineQueue('update', template);
+                throw err;
+            }
+        }
+
+        // Удаление из Supabase
+        async deleteFromSupabase(id) {
+            if (!this.supabase) return;
+            try {
+                const { error } = await this.supabase
+                    .from('templates')
+                    .delete()
+                    .eq('id', id)
+                    .select();
+
+                if (error) {
+                    if (error.code === '404' || error.code === 'PGRST116') {
+                        await this.supabase.rpc('init_templates_table');
+                        return await this.deleteFromSupabase(id);
+                    }
+                    throw error;
+                }
+            } catch (err) {
+                console.error('Ошибка удаления из Supabase:', err);
+                this.addToOfflineQueue('delete', { id });
+                throw err;
+            }
+        }
+        
+        // Остановка автоматической синхронизации
+        stopAutoSync() {
+            if (this.syncInterval) {
+                clearInterval(this.syncInterval);
+                this.syncInterval = null;
+                console.log('Автоматическая синхронизация остановлена');
+            }
+        }
+        
+        // Инициализация IndexedDB
+        async initIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    this.db = request.result;
+                    resolve();
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    
+                    // Создаём хранилище для шаблонов
+                    if (!db.objectStoreNames.contains(DB_CONFIG.storeName)) {
+                        const store = db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath });
+                        
+                        // Создаём индексы для поиска
+                        store.createIndex('name', 'name', { unique: false });
+                        store.createIndex('category', 'category', { unique: false });
+                        store.createIndex('favorite', 'favorite', { unique: false });
+                        store.createIndex('dateCreated', 'dateCreated', { unique: false });
+                        store.createIndex('dateModified', 'dateModified', { unique: false });
+                    }
+                };
+            });
+        }
+        
+        // Инициализация localStorage
+        initLocalStorage() {
+            // Проверяем, есть ли уже данные
+            if (!localStorage.getItem('templates')) {
+                localStorage.setItem('templates', JSON.stringify([]));
+            }
+        }
+        
+        // Получение всех шаблонов
+        async getAllTemplates() {
+            await this.ensureInitialized();
+            
+            try {
+                if (this.useIndexedDB) {
+                    return await this.getAllFromIndexedDB();
+                } else {
+                    return this.getAllFromLocalStorage();
+                }
+            } catch (error) {
+                console.error('Ошибка при получении шаблонов:', error);
+                return [];
+            }
+        }
+        
+        // Получение из IndexedDB
+        async getAllFromIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readonly');
+                const store = transaction.objectStore(DB_CONFIG.storeName);
+                const request = store.getAll();
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result || []);
+            });
+        }
+        
+        // Получение из localStorage
+        getAllFromLocalStorage() {
+            try {
+                const templates = localStorage.getItem('templates');
+                return templates ? JSON.parse(templates) : [];
+            } catch (error) {
+                console.error('Ошибка при чтении из localStorage:', error);
+                return [];
+            }
+        }
+        
+        // Добавление шаблона
+        async addTemplate(template) {
+            await this.ensureInitialized();
+            
+            try {
+                console.log('[addTemplate] Начало добавления шаблона');
+
+                // Генерируем ID и даты
+                const newTemplate = {
+                    ...template,
+                    id: template.id || this.generateId(),
+                    dateCreated: template.dateCreated || new Date().toISOString(),
+                    dateModified: new Date().toISOString(),
+                    favorite: template.favorite || false
+                };
+                
+                console.log('[addTemplate] Подготовлен новый шаблон:', newTemplate);
+                
+                // Сохраняем локально
+                if (this.useIndexedDB) {
+                    console.log('[addTemplate] Сохранение в IndexedDB...');
+                    await this.addToIndexedDB(newTemplate);
+                    console.log('[addTemplate] Успешно сохранено в IndexedDB');
+                } else {
+                    console.log('[addTemplate] Сохранение в localStorage...');
+                    this.addToLocalStorage(newTemplate);
+                    console.log('[addTemplate] Успешно сохранено в localStorage');
+                }
+                
+                // Синхронизируем с Supabase если доступен и есть подключение
+                console.log('[addTemplate] Проверка возможности сохранения в Supabase:', {
+                    supabaseAvailable: !!this.supabase,
+                    syncEnabled: this.syncEnabled,
+                    isOnline: navigator.onLine
+                });
+
+                if (this.supabase && this.syncEnabled) {
+                    if (navigator.onLine) {
+                        try {
+                            console.log('[addTemplate] Попытка сохранения в Supabase:', newTemplate);
+                            if (window.ENABLE_SUPABASE_DEBUG) {
+                                console.log('Попытка добавления в Supabase:', {
+                                    template: newTemplate,
+                                    supabaseState: {
+                                        url: this.supabase?.supabaseUrl,
+                                        initialized: !!this.supabase,
+                                        online: navigator.onLine
+                                    }
+                                });
+                            }
+                            
+                            // Проверяем подключение перед сохранением
+                            const isConnected = await this.checkSupabaseConnection();
+                            if (!isConnected) {
+                                throw new Error('Нет подключения к Supabase');
+                            }
+
+                            console.log('[addTemplate] Отправка запроса к Supabase...');
+                            
+                            // Создаем или обновляем в Supabase
+                            const templateData = {
+                                id: newTemplate.id,
+                                name: newTemplate.name,
+                                category: newTemplate.category || '',
+                                content: newTemplate.content,
+                                dateCreated: newTemplate.dateCreated,
+                                dateModified: newTemplate.dateModified,
+                                favorite: newTemplate.favorite || false
+                            };
+
+                            console.log('[addTemplate] Отправка данных в Supabase:', templateData);
+
+                            const { error: upsertError } = await this.supabase
+                                .from('templates')
+                                .upsert(templateData, { 
+                                    onConflict: 'id',
+                                    ignoreDuplicates: false 
+                                });
+
+                            if (upsertError) {
+                                console.error('[addTemplate] Ошибка при сохранении:', upsertError);
+                                throw upsertError;
+                            }
+
+                            // Проверяем, не существует ли уже шаблон с таким ID
+                            const { data: existingTemplate, error: checkError } = await this.supabase
+                                .from('templates')
+                                .select('id')
+                                .eq('id', newTemplate.id)
+                                .single();
+
+                            if (checkError && checkError.code !== 'PGRST116') {
+                                console.error('[addTemplate] Ошибка при проверке существующего шаблона:', checkError);
+                                throw checkError;
+                            }
+
+                            if (existingTemplate) {
+                                console.log('[addTemplate] Шаблон уже существует, обновляем...');
+                                const templateData = {
+                                    name: newTemplate.name,
+                                    category: newTemplate.category || '',
+                                    content: newTemplate.content,
+                                    dateModified: newTemplate.dateModified,
+                                    favorite: newTemplate.favorite || false
+                                };
+
+                                const { error: updateError } = await this.supabase
+                                    .from('templates')
+                                    .update(templateData)
+                                    .eq('id', newTemplate.id);
+
+                                if (updateError) {
+                                    throw updateError;
+                                }
+                            } else {
+                                console.log('[addTemplate] Создаем новый шаблон...');
+                                const templateData = {
+                                    id: newTemplate.id,
+                                    name: newTemplate.name,
+                                    category: newTemplate.category || '',
+                                    content: newTemplate.content,
+                                    dateCreated: newTemplate.dateCreated,
+                                    dateModified: newTemplate.dateModified,
+                                    favorite: newTemplate.favorite || false
+                                };
+
+                                console.log('[addTemplate] Отправка данных в Supabase:', templateData);
+
+                                const { data, error } = await this.supabase
+                                    .from('templates')
+                                    .insert([templateData]);
+
+                            if (error) {
+                                console.error('[addTemplate] Ошибка синхронизации с Supabase:', error);
+                                console.error('[addTemplate] Детали ошибки:', {
+                                    code: error.code,
+                                    message: error.message,
+                                    details: error.details,
+                                    template: templateData,
+                                    supabaseState: {
+                                        url: this.supabase?.supabaseUrl,
+                                        initialized: !!this.supabase,
+                                        online: navigator.onLine
+                                    }
+                                });
+                                
+                                this.addToOfflineQueue('add', templateData);
+                            } else {
+                                console.log('[addTemplate] Успешно сохранено в Supabase:', {
+                                    responseData: data,
+                                    template: newTemplate
+                                });
+                            }
+                        } catch (err) {
+                            console.error('Ошибка сети при синхронизации:', err);
+                            console.error('Состояние подключения:', {
+                                isOnline: navigator.onLine,
+                                supabaseInitialized: !!this.supabase,
+                                syncEnabled: this.syncEnabled
+                            });
+                            this.addToOfflineQueue('add', newTemplate);
+                        }
+                    } else {
+                        console.log('Нет подключения к интернету, добавляем в очередь синхронизации');
+                        this.addToOfflineQueue('add', newTemplate);
+                    }
+                }
+                
+                console.log('Шаблон добавлен:', newTemplate.id);
+                return newTemplate;
+            } catch (error) {
+                console.error('Ошибка при добавлении шаблона:', error);
+                throw error;
+            }
+        }
+        
+        // Добавление в IndexedDB
+        async addToIndexedDB(template) {
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readwrite');
+                const store = transaction.objectStore(DB_CONFIG.storeName);
+                const request = store.add(template);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve();
+            });
+        }
+        
+        // Добавление в localStorage
+        addToLocalStorage(template) {
+            try {
+                const templates = this.getAllFromLocalStorage();
+                templates.push(template);
+                localStorage.setItem('templates', JSON.stringify(templates));
+            } catch (error) {
+                console.error('Ошибка при записи в localStorage:', error);
+                throw error;
+            }
+        }
+        
+        // Обновление шаблона
+        async updateTemplate(template) {
+            await this.ensureInitialized();
+            
+            try {
+                const updatedTemplate = {
+                    ...template,
+                    dateModified: new Date().toISOString()
+                };
+                
+                // Обновляем локально
+                if (this.useIndexedDB) {
+                    await this.updateInIndexedDB(updatedTemplate);
+                } else {
+                    this.updateInLocalStorage(updatedTemplate);
+                }
+                
+                // Синхронизируем с Supabase если доступен и есть подключение
+                if (this.supabase && this.syncEnabled) {
+                    if (navigator.onLine) {
+                        try {
+                            const { error } = await this.supabase
+                                .from('templates')
+                                .update(updatedTemplate)
+                                .eq('id', updatedTemplate.id);
+                            if (error) {
+                                console.warn('Ошибка синхронизации с Supabase:', error);
+                                this.addToOfflineQueue('update', updatedTemplate);
+                            }
+                        } catch (err) {
+                            console.warn('Ошибка сети при обновлении:', err);
+                            this.addToOfflineQueue('update', updatedTemplate);
+                        }
+                    } else {
+                        this.addToOfflineQueue('update', updatedTemplate);
+                    }
+                }
+                
+                console.log('Шаблон обновлён:', updatedTemplate.id);
+                return updatedTemplate;
+            } catch (error) {
+                console.error('Ошибка при обновлении шаблона:', error);
+                throw error;
+            }
+        }
+        
+        // Обновление в IndexedDB
+        async updateInIndexedDB(template) {
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readwrite');
+                const store = transaction.objectStore(DB_CONFIG.storeName);
+                const request = store.put(template);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve();
+            });
+        }
+        
+        // Обновление в localStorage
+        updateInLocalStorage(template) {
+            try {
+                const templates = this.getAllFromLocalStorage();
+                const index = templates.findIndex(t => t.id === template.id);
+                
+                if (index !== -1) {
+                    templates[index] = template;
+                    localStorage.setItem('templates', JSON.stringify(templates));
+                } else {
+                    throw new Error('Шаблон не найден');
+                }
+            } catch (error) {
+                console.error('Ошибка при обновлении в localStorage:', error);
+                throw error;
+            }
+        }
+        
+        // Удаление шаблона
+        async deleteTemplate(id) {
+            await this.ensureInitialized();
+            
+            try {
+                // Удаляем локально
+                if (this.useIndexedDB) {
+                    await this.deleteFromIndexedDB(id);
+                } else {
+                    this.deleteFromLocalStorage(id);
+                }
+                
+                // Удаляем из Supabase если доступен и есть подключение
+                if (this.supabase && this.syncEnabled) {
+                    if (navigator.onLine) {
+                        try {
+                            const { error } = await this.supabase
+                                .from('templates')
+                                .delete()
+                                .eq('id', id);
+                            if (error) {
+                                console.warn('Ошибка удаления из Supabase:', error);
+                                this.addToOfflineQueue('delete', { id });
+                            }
+                        } catch (err) {
+                            console.warn('Ошибка сети при удалении:', err);
+                            this.addToOfflineQueue('delete', { id });
+                        }
+                    } else {
+                        this.addToOfflineQueue('delete', { id });
+                    }
+                }
+                
+                console.log('Шаблон удалён:', id);
+                return true;
+            } catch (error) {
+                console.error('Ошибка при удалении шаблона:', error);
+                throw error;
+            }
+        }
+        
+        // Удаление из IndexedDB
+        async deleteFromIndexedDB(id) {
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readwrite');
+                const store = transaction.objectStore(DB_CONFIG.storeName);
+                const request = store.delete(id);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve();
+            });
+        }
+        
+        // Удаление из localStorage
+        deleteFromLocalStorage(id) {
+            try {
+                const templates = this.getAllFromLocalStorage();
+                const filteredTemplates = templates.filter(t => t.id !== id);
+                localStorage.setItem('templates', JSON.stringify(filteredTemplates));
+            } catch (error) {
+                console.error('Ошибка при удалении из localStorage:', error);
+                throw error;
+            }
+        }
+        
+                // Поиск шаблонов
+        async searchTemplates(query, category = 'all', favoritesOnly = false) {
+            await this.ensureInitialized();
+            
+            try {
+                // Пробуем сначала искать в Supabase если доступен
+                if (this.supabase && this.syncEnabled) {
+                    let supabaseQuery = this.supabase
+                        .from('templates')
+                        .select('*');
+
+                    // Применяем фильтры
+                    if (category !== 'all') {
+                        supabaseQuery = supabaseQuery.eq('category', category);
+                    }
+                    if (favoritesOnly) {
+                        supabaseQuery = supabaseQuery.eq('favorite', true);
+                    }
+                    if (query) {
+                        // Используем полнотекстовый поиск
+                        supabaseQuery = supabaseQuery.textSearch(
+                            'content',
+                            query,
+                            {
+                                config: 'russian',
+                                type: 'plain'
+                            }
+                        );
+                    }
+
+                    const { data, error } = await supabaseQuery;
+                    if (!error && data) {
+                        return data;
+                    }
+                }
+
+                // Если Supabase недоступен или произошла ошибка, ищем локально
+                const templates = await this.getAllTemplates();
+                return templates.filter(template => {
+                    // Фильтр по категории
+                    if (category !== 'all' && template.category !== category) {
+                        return false;
+                    }
+                    
+                    // Фильтр по избранному
+                    if (favoritesOnly && !template.favorite) {
+                        return false;
+                    }
+                    
+                    // Поиск по имени и содержимому
+                    if (query) {
+                        const searchStr = query.toLowerCase();
+                        return template.name.toLowerCase().includes(searchStr) ||
+                               template.content.toLowerCase().includes(searchStr);
+                    }
+                    
+                    return true;
+                });
+            } catch (error) {
+                console.error('Error searching templates:', error);
+                return [];
+            }
+        }
+        
+        // Получение категорий
+        async getCategories() {
+            await this.ensureInitialized();
+            
+            try {
+                const templates = await this.getAllTemplates();
+                const categories = [...new Set(templates.map(t => t.category).filter(Boolean))];
+                return categories.sort();
+            } catch (error) {
+                console.error('Ошибка при получении категорий:', error);
+                return [];
+            }
+        }
+        
+        // Экспорт данных
+        async exportData() {
+            await this.ensureInitialized();
+            
+            try {
+                const templates = await this.getAllTemplates();
+                return JSON.stringify(templates, null, 2);
+            } catch (error) {
+                console.error('Ошибка при экспорте данных:', error);
+                throw error;
+            }
+        }
+        
+        // Импорт данных
+        async importData(jsonData, merge = false) {
+            await this.ensureInitialized();
+            
+            try {
+                const templates = JSON.parse(jsonData);
+                
+                if (!Array.isArray(templates)) {
+                    throw new Error('Неверный формат данных');
+                }
+                
+                if (merge) {
+                    // Объединяем с существующими данными
+                    const existingTemplates = await this.getAllTemplates();
+                    const existingIds = new Set(existingTemplates.map(t => t.id));
+                    
+                    for (const template of templates) {
+                        if (!existingIds.has(template.id)) {
+                            await this.addTemplate(template);
+                        }
+                    }
+                } else {
+                    // Заменяем все данные
+                    if (this.useIndexedDB) {
+                        await this.clearIndexedDB();
+                        for (const template of templates) {
+                            await this.addTemplate(template);
+                        }
+                    } else {
+                        localStorage.setItem('templates', JSON.stringify(templates));
+                    }
+                }
+                
+                console.log('Данные импортированы:', templates.length, 'шаблонов');
+                return templates.length;
+            } catch (error) {
+                console.error('Ошибка при импорте данных:', error);
+                throw error;
+            }
+        }
+
+        // Импорт шаблонов из JSON (обёртка для совместимости)
+        async importTemplates(jsonString, merge = false) {
+            await this.ensureInitialized();
+            try {
+                // Delegate to importData which already handles parsing and insertion
+                return await this.importData(jsonString, merge);
+            } catch (error) {
+                console.error('Ошибка при импорте JSON шаблонов:', error);
+                throw error;
+            }
+        }
+
+        // Импорт шаблонов из TXT
+        // Формат: несколько блоков, разделённых пустой строкой или строкой с ---
+        // В каждом блоке первая строка - название шаблона, вторая (опционально) может быть 'Category: Название'
+        async importTemplatesFromTxt(txtData, defaultCategory = 'Импортировано из TXT') {
+            await this.ensureInitialized();
+
+            try {
+                if (!txtData || typeof txtData !== 'string') {
+                    throw new Error('Пустые или неверные данные для импорта из TXT');
+                }
+
+                // Разбиваем на блоки: сначала проверяем явные разделители '---', иначе двойной перенос строки
+                let blocks = [];
+                if (/^\s*---\s*$/m.test(txtData)) {
+                    blocks = txtData.split(/^\s*---\s*$/m);
+                } else {
+                    blocks = txtData.split(/\r?\n\r?\n+/);
+                }
+
+                const created = [];
+
+                for (const raw of blocks) {
+                    const block = raw.trim();
+                    if (!block) continue;
+
+                    const lines = block.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                    if (lines.length === 0) continue;
+
+                    let name = lines[0];
+                    let category = defaultCategory;
+                    let contentLines = [];
+
+                    // Проверяем, указана ли вторая строке категория в виде 'Category: ...' или 'Категория: ...'
+                    if (lines.length > 1) {
+                        const m = lines[1].match(/^(?:Category:|Категория:)\s*(.+)$/i);
+                        if (m) {
+                            category = m[1].trim() || defaultCategory;
+                            contentLines = lines.slice(2);
+                        } else {
+                            contentLines = lines.slice(1);
+                        }
+                    }
+
+                    const content = contentLines.join('\n').trim();
+
+                    const templateObj = {
+                        name: name || 'Без названия',
+                        category: category || defaultCategory,
+                        content: content || '',
+                        favorite: false
+                    };
+
+                    // Используем addTemplate чтобы корректно проставить id и даты
+                    const newT = await this.addTemplate(templateObj);
+                    created.push(newT);
+                }
+
+                console.log('Импортировано шаблонов из TXT:', created.length);
+                return created.length;
+            } catch (error) {
+                console.error('Ошибка при импорте из TXT:', error);
+                throw error;
+            }
+        }
+        
+        // Очистка IndexedDB
+        async clearIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readwrite');
+                const store = transaction.objectStore(DB_CONFIG.storeName);
+                const request = store.clear();
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve();
+            });
+        }
+        
+        // Очистка localStorage
+        clearLocalStorage() {
+            try {
+                localStorage.removeItem('templates');
+                localStorage.setItem('templates', JSON.stringify([]));
+            } catch (error) {
+                console.error('Ошибка при очистке localStorage:', error);
+                throw error;
+            }
+        }
+        
+        // Очистка всех данных
+        async clearAll() {
+            await this.ensureInitialized();
+            
+            try {
+                if (this.useIndexedDB) {
+                    await this.clearIndexedDB();
+                } else {
+                    this.clearLocalStorage();
+                }
+                
+                console.log('Все данные очищены');
+            } catch (error) {
+                console.error('Ошибка при очистке данных:', error);
+                throw error;
+            }
+        }
+        
+        // Проверка инициализации
+        async ensureInitialized() {
+            if (!this.isInitialized) {
+                await this.init();
+            }
+        }
+        
+        // Генерация ID
+        generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+        
+        // Получение статистики
+        async getStats() {
+            await this.ensureInitialized();
+            
+            try {
+                const templates = await this.getAllTemplates();
+                
+                return {
+                    total: templates.length,
+                    favorites: templates.filter(t => t.favorite).length,
+                    categories: (await this.getCategories()).length,
+                    storageType: this.useIndexedDB ? 'IndexedDB' : 'localStorage'
+                };
+            } catch (error) {
+                console.error('Ошибка при получении статистики:', error);
+                return { total: 0, favorites: 0, categories: 0, storageType: 'unknown' };
+            }
+        }
+    }
+    
+    // Создаём и инициализируем экземпляр базы данных при загрузке страницы
+    function createAndInitDatabase() {
+        var db = new TemplateDatabase();
+        window.TemplateDB = db;
+        return db.init().then(function() {
+            console.log('База данных успешно инициализирована');
+        }).catch(function(err) {
+            console.error('Ошибка при инициализации базы данных:', err);
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', createAndInitDatabase);
+    } else {
+        createAndInitDatabase();
+    }
+})();

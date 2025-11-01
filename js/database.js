@@ -1,24 +1,61 @@
 // Модуль для работы с базой данных
 (function() {
     'use strict';
-    
+
     // Конфигурация базы данных
-    const DB_CONFIG = {
+    var DB_CONFIG = {
         name: 'TemplatesDB',
         version: 1,
         storeName: 'templates',
         keyPath: 'id'
     };
-    
+
+    // Подписчики на события изменений
+    var subscribers = [];
+
+    // Уведомление подписчиков об изменениях
+    function notifySubscribers(action, data) {
+        subscribers.forEach(function(callback) {
+            try {
+                callback(action, data);
+            } catch (e) {
+                console.error('Ошибка в обработчике события:', e);
+            }
+        });
+    }
+
+    // Подписка на изменения
+    function subscribe(callback) {
+        if (typeof callback === 'function' && !subscribers.includes(callback)) {
+            subscribers.push(callback);
+        }
+    }
+
+    // Отписка от изменений
+    function unsubscribe(callback) {
+        const index = subscribers.indexOf(callback);
+        if (index !== -1) {
+            subscribers.splice(index, 1);
+        }
+    }
+
+    // Генерация уникального ID
+    function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substring(2);
+    }
+
     // Обновление индикатора синхронизации
-    function updateSyncIndicator(state, message = '') {
-        const indicator = document.getElementById('syncIndicator');
+    function updateSyncIndicator(state, message) {
+        var indicator = document.getElementById('syncIndicator');
         if (!indicator) return;
         
+        // Сбрасываем классы
         indicator.classList.remove('syncing', 'error', 'synced');
-        const icon = indicator.querySelector('i');
-        const status = indicator.querySelector('.sync-status');
         
+        var icon = indicator.querySelector('i');
+        var status = indicator.querySelector('.sync-status');
+        
+        // Обновляем состояние
         switch (state) {
             case 'syncing':
                 indicator.classList.add('syncing');
@@ -34,10 +71,12 @@
                 indicator.classList.add('synced');
                 icon.className = 'fas fa-cloud-upload-alt';
                 status.textContent = 'Синхронизировано';
-                setTimeout(() => {
-                    indicator.classList.remove('synced');
-                    icon.className = 'fas fa-cloud';
-                    status.textContent = 'Локально';
+                setTimeout(function() {
+                    if (indicator && icon && status) {
+                        indicator.classList.remove('synced');
+                        icon.className = 'fas fa-cloud';
+                        status.textContent = 'Локально';
+                    }
                 }, 3000);
                 break;
             default:
@@ -45,975 +84,909 @@
                 status.textContent = 'Локально';
         }
     }
-    
-    // Класс для работы с базой данных
-    class TemplateDatabase {
-        constructor() {
-            this.db = null;
-            this.isInitialized = false;
-            this.useIndexedDB = true;
-            this.supabase = window.supabase; // Интеграция с Supabase
-            this.syncEnabled = true; // Флаг для управления синхронизацией
-            this.syncInterval = null; // Интервал автоматической синхронизации
-            this.lastSyncTime = null; // Время последней синхронизации
-            this.offlineQueue = []; // Очередь операций для выполнения при восстановлении соединения
 
-            // Слушаем состояние сети
-            if (typeof window !== 'undefined') {
-                window.addEventListener('online', this.handleOnline.bind(this));
-                window.addEventListener('offline', this.handleOffline.bind(this));
-            }
-        }
+    // Конструктор базы данных
+    function TemplateDatabase() {
+        var self = this;
         
-        // Обработчик восстановления соединения
-        async handleOnline() {
-            console.log('Соединение восстановлено');
-            updateSyncIndicator('syncing');
-            
-            try {
-                // Проверяем подключение к Supabase
-                const isConnected = await this.checkSupabaseConnection();
-                if (!isConnected) {
-                    updateSyncIndicator('error', 'Нет подключения к облаку');
-                    return;
-                }
+        this.db = null;
+        this.isInitialized = false;
+        this.useIndexedDB = true;
+        this.supabase = null;
+        this.syncEnabled = true;
+        this.syncInterval = null;
+        this.lastSyncTime = null;
+        this.offlineQueue = [];
 
-                // Запускаем синхронизацию
-                await this.forceSyncWithSupabase();
-                
-                // Обрабатываем очередь офлайн-операций
-                while (this.offlineQueue.length > 0) {
-                    const operation = this.offlineQueue.shift();
-                    try {
-                        await this.processOfflineOperation(operation);
-                    } catch (err) {
-                        console.error('Ошибка обработки офлайн-операции:', err);
-                        this.offlineQueue.unshift(operation); // Возвращаем операцию в очередь
-                        break;
+        // Привязываем методы к контексту
+        ['init', 'handleOnline', 'handleOffline', 'addTemplate', 
+         'syncWithSupabase', 'checkSupabaseConnection', 'initIndexedDB',
+         'initLocalStorage', 'addToIndexedDB', 'addToLocalStorage',
+         'getAllTemplates', 'getAllFromIndexedDB', 'getAllFromLocalStorage']
+        .forEach(function(method) {
+            self[method] = self[method].bind(self);
+        });
+
+        // Инициализация слушателей состояния сети
+        if (typeof window !== 'undefined') {
+            window.addEventListener('online', this.handleOnline);
+            window.addEventListener('offline', this.handleOffline);
+        }
+
+        // Инициализация Supabase
+        this.initSupabase();
+    }
+
+    // Методы прототипа
+    TemplateDatabase.prototype = {
+        constructor: TemplateDatabase,
+
+        // Инициализация
+        init: function() {
+            var self = this;
+            
+            if (this.isInitialized) {
+                return Promise.resolve();
+            }
+
+            return new Promise(function(resolve, reject) {
+                try {
+                    if (self.useIndexedDB && 'indexedDB' in window) {
+                        self.initIndexedDB()
+                            .then(function() {
+                                self.isInitialized = true;
+                                console.log('База данных инициализирована (IndexedDB)');
+                                resolve();
+                            })
+                            .catch(function(err) {
+                                console.error('Ошибка IndexedDB:', err);
+                                self.useIndexedDB = false;
+                                self.initLocalStorage();
+                                self.isInitialized = true;
+                                console.log('База данных инициализирована (localStorage)');
+                                resolve();
+                            });
+                    } else {
+                        self.useIndexedDB = false;
+                        self.initLocalStorage();
+                        self.isInitialized = true;
+                        console.log('База данных инициализирована (localStorage)');
+                        resolve();
+                    }
+                } catch (err) {
+                    reject(err);
+                }
+            });
+        },
+
+        // Инициализация Supabase
+        initSupabase: function() {
+            var self = this;
+            var checkInterval = setInterval(function() {
+                if (window.supabase && !self.supabase) {
+                    console.log('Обнаружен клиент Supabase');
+                    self.supabase = window.supabase;
+                    clearInterval(checkInterval);
+                    self.onSupabaseInit();
+                }
+            }, 100);
+
+            setTimeout(function() {
+                if (checkInterval) {
+                    clearInterval(checkInterval);
+                    if (!self.supabase) {
+                        console.warn('Supabase не был инициализирован за 10 секунд');
                     }
                 }
-            } catch (err) {
-                console.error('Ошибка при обработке восстановления соединения:', err);
-                updateSyncIndicator('error', 'Ошибка синхронизации');
+            }, 10000);
+        },
+
+        // Обработка инициализации Supabase
+        onSupabaseInit: function() {
+            var self = this;
+            this.checkSupabaseConnection()
+                .then(function(isConnected) {
+                    if (isConnected) {
+                        console.log('Подключение к Supabase установлено');
+                        return self.startAutoSync();
+                    }
+                })
+                .catch(function(err) {
+                    console.error('Ошибка при инициализации Supabase:', err);
+                });
+        },
+
+        // Инициализация IndexedDB
+        initIndexedDB: function() {
+            var self = this;
+            return new Promise(function(resolve, reject) {
+                var request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);
+                
+                request.onerror = function() {
+                    reject(request.error);
+                };
+                
+                request.onsuccess = function() {
+                    self.db = request.result;
+                    resolve();
+                };
+                
+                request.onupgradeneeded = function(event) {
+                    var db = event.target.result;
+                    if (!db.objectStoreNames.contains(DB_CONFIG.storeName)) {
+                        var store = db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath });
+                        store.createIndex('name', 'name', { unique: false });
+                        store.createIndex('category', 'category', { unique: false });
+                        store.createIndex('dateModified', 'dateModified', { unique: false });
+                    }
+                };
+            });
+        },
+
+        // Инициализация localStorage
+        initLocalStorage: function() {
+            if (!localStorage.getItem('templates')) {
+                localStorage.setItem('templates', JSON.stringify([]));
             }
-        }
-        
+        },
+
+        // Проверка подключения к Supabase
+        checkSupabaseConnection: function() {
+            var self = this;
+            
+            if (!this.supabase) {
+                console.warn('Supabase не инициализирован');
+                return Promise.resolve(false);
+            }
+
+            return this.supabase
+                .from('templates')
+                .select('id')
+                .limit(1)
+                .then(function(response) {
+                    if (response.error) {
+                        if (response.error.code === '404' || response.error.code === 'PGRST116') {
+                            return self.createSupabaseTable();
+                        }
+                        throw response.error;
+                    }
+                    return true;
+                })
+                .catch(function(err) {
+                    console.error('Ошибка проверки Supabase:', err);
+                    return false;
+                });
+        },
+
+        // Создание таблицы в Supabase
+        createSupabaseTable: function() {
+            return this.supabase.rpc('init_templates_table')
+                .then(function() {
+                    console.log('Таблица templates создана');
+                    return true;
+                })
+                .catch(function(err) {
+                    console.error('Ошибка создания таблицы:', err);
+                    return false;
+                });
+        },
+
+        // Обработчик восстановления соединения
+        handleOnline: function() {
+            var self = this;
+            console.log('Соединение восстановлено');
+            
+            this.checkSupabaseConnection()
+                .then(function(isConnected) {
+                    if (!isConnected) {
+                        updateSyncIndicator('error', 'Нет доступа к облаку');
+                        return;
+                    }
+                    
+                    updateSyncIndicator('syncing');
+                    return self.syncWithSupabase();
+                })
+                .catch(function(err) {
+                    console.error('Ошибка синхронизации после восстановления:', err);
+                    updateSyncIndicator('error', err.message);
+                });
+        },
+
         // Обработчик потери соединения
-        handleOffline() {
+        handleOffline: function() {
             console.log('Соединение потеряно');
             updateSyncIndicator('error', 'Нет подключения');
+            
             if (this.syncInterval) {
                 clearInterval(this.syncInterval);
                 this.syncInterval = null;
             }
-        }
-        
-        // Обработка офлайн-операции
-        async processOfflineOperation(operation) {
-            switch (operation.type) {
-                case 'add':
-                    await this.addToSupabase(operation.data);
-                    break;
-                case 'update':
-                    await this.updateInSupabase(operation.data);
-                    break;
-                case 'delete':
-                    await this.deleteFromSupabase(operation.id);
-                    break;
-            }
-        }
-        
+        },
+
         // Добавление операции в офлайн-очередь
-        addToOfflineQueue(type, data) {
-            this.offlineQueue.push({ type, data, timestamp: Date.now() });
-        }
+        addToOfflineQueue: function(type, data) {
+            this.offlineQueue.push({
+                type: type,
+                data: data,
+                timestamp: Date.now()
+            });
+        },
 
-        // Метод для синхронизации с Supabase
-        async syncWithSupabase(force = false) {
-            if ((!this.syncEnabled || !this.supabase) && !force) return;
+        // Синхронизация с Supabase
+        syncWithSupabase: function(force) {
+            var self = this;
+            
+            if ((!this.syncEnabled || !this.supabase) && !force) {
+                return Promise.resolve();
+            }
 
-            try {
-                const now = Date.now();
-                // Проверяем, прошло ли достаточно времени с последней синхронизации
-                if (!force && this.lastSyncTime && (now - this.lastSyncTime < 30000)) { // 30 секунд
-                    console.log('Пропуск синхронизации: слишком частые запросы');
-                    return;
+            return new Promise(function(resolve, reject) {
+                var now = Date.now();
+                if (!force && self.lastSyncTime && (now - self.lastSyncTime < 30000)) {
+                    return resolve();
                 }
 
                 updateSyncIndicator('syncing');
 
-                // Получаем все локальные шаблоны
-                const localTemplates = await this.getAllTemplates();
-                
-                // Получаем все шаблоны из Supabase
-                const { data: remoteTemplates, error } = await this.supabase
-                    .from('templates')
-                    .select('*');
-
-                if (error) {
-                    if (error.code === '404' || error.code === 'PGRST116') {
-                        // Таблица не существует, создаём и синхронизируем локальные данные
-                        await this.supabase.rpc('init_templates_table');
-                        const localTemplates = await this.getAllTemplates();
-                        if (localTemplates.length > 0) {
-                            const { error: insertError } = await this.supabase
-                                .from('templates')
-                                .insert(localTemplates);
-                            if (insertError) throw insertError;
-                        }
-                        return;
-                    }
-                    throw error;
-                }
-
-                // Создаём Map для быстрого поиска
-                const localMap = new Map(localTemplates.map(t => [t.id, t]));
-                const remoteMap = new Map(remoteTemplates.map(t => [t.id, t]));
-
-                // Синхронизация: обновляем локальные данные
-                for (const [id, remoteTemplate] of remoteMap) {
-                    const localTemplate = localMap.get(id);
-                    if (!localTemplate) {
-                        // Добавляем отсутствующие локально
-                        await this.addTemplate(remoteTemplate);
-                        console.log('Синхронизирован из облака:', remoteTemplate.name);
-                    } else if (new Date(remoteTemplate.dateModified) > new Date(localTemplate.dateModified)) {
-                        // Обновляем если удаленная версия новее
-                        await this.updateTemplate(remoteTemplate);
-                        console.log('Обновлен из облака:', remoteTemplate.name);
-                    }
-                }
-
-                // Синхронизация: отправляем локальные изменения
-                for (const [id, localTemplate] of localMap) {
-                    const remoteTemplate = remoteMap.get(id);
-                    if (!remoteTemplate) {
-                        // Отправляем отсутствующие в облаке
-                        const { error } = await this.supabase
+                self.getAllTemplates()
+                    .then(function(localTemplates) {
+                        return self.supabase
                             .from('templates')
-                            .insert([localTemplate]);
-                        if (error) {
-                            console.warn('Ошибка синхронизации с облаком:', error);
-                        } else {
-                            console.log('Отправлен в облако:', localTemplate.name);
-                        }
-                    } else if (new Date(localTemplate.dateModified) > new Date(remoteTemplate.dateModified)) {
-                        // Обновляем если локальная версия новее
-                        const { error } = await this.supabase
-                            .from('templates')
-                            .update(localTemplate)
-                            .eq('id', id);
-                        if (error) {
-                            console.warn('Ошибка обновления в облаке:', error);
-                        } else {
-                            console.log('Обновлен в облаке:', localTemplate.name);
-                        }
-                    }
-                }
+                            .select('*')
+                            .then(function(response) {
+                                if (response.error) throw response.error;
 
-                this.lastSyncTime = now;
-                console.info('Синхронизация завершена успешно');
-                updateSyncIndicator('synced');
-            } catch (err) {
-                console.error('Ошибка синхронизации:', err);
-                updateSyncIndicator('error', err.message);
-                throw err; // Пробрасываем ошибку для обработки выше
-            }
-        }
+                                var remoteTemplates = response.data || [];
+                                var promises = [];
 
-        // Принудительная синхронизация
-        async forceSyncWithSupabase() {
-            try {
-                await this.syncWithSupabase(true);
-                return true;
-            } catch (err) {
-                console.error('Ошибка принудительной синхронизации:', err);
-                return false;
-            }
-        }
-        
-        // Проверка подключения к Supabase
-        async checkSupabaseConnection() {
-            if (!this.supabase) return false;
-            try {
-                const { error } = await this.supabase
-                    .from('templates')
-                    .select('id')
-                    .limit(1)
-                    .maybeSingle();
-                
-                if (error) {
-                    if (error.code === '404' || error.code === 'PGRST116') {
-                        // Таблица не существует, попробуем создать
-                        try {
-                            await this.supabase.rpc('init_templates_table');
-                            return true;
-                        } catch (initError) {
-                            console.warn('Не удалось создать таблицу:', initError);
-                            return false;
-                        }
-                    }
-                    throw error;
-                }
-                return true;
-            } catch (err) {
-                if (err.message?.includes('Failed to fetch')) {
-                    console.warn('Supabase недоступен, работаем локально');
-                } else {
-                    console.warn('Ошибка проверки подключения к Supabase:', err);
-                }
-                return false;
-            }
-        }
+                                // Создаём Map для быстрого поиска
+                                var localMap = {};
+                                localTemplates.forEach(function(t) {
+                                    localMap[t.id] = t;
+                                });
 
-        // Инициализация базы данных
-        async init() {
-            if (this.isInitialized) return;
-            
-            try {
-                // Пробуем использовать IndexedDB
-                if (this.useIndexedDB && 'indexedDB' in window) {
-                    await this.initIndexedDB();
-                } else {
-                    // Fallback на localStorage
-                    this.useIndexedDB = false;
-                    this.initLocalStorage();
-                }
-                
-                this.isInitialized = true;
-                console.log('База данных инициализирована:', this.useIndexedDB ? 'IndexedDB' : 'localStorage');
-                
-                // Проверяем подключение к Supabase и запускаем синхронизацию
-                if (this.supabase && this.syncEnabled) {
-                    const isConnected = await this.checkSupabaseConnection();
-                    if (isConnected) {
-                        await this.startAutoSync();
-                    } else {
-                        updateSyncIndicator('error', 'Нет подключения к облаку');
-                        // Повторная попытка подключения через 30 секунд
-                        setTimeout(async () => {
-                            const retryConnection = await this.checkSupabaseConnection();
-                            if (retryConnection) {
-                                await this.startAutoSync();
-                            }
-                        }, 30000);
-                    }
-                }
-            } catch (error) {
-                console.error('Ошибка при инициализации базы данных:', error);
-                // Fallback на localStorage
-                this.useIndexedDB = false;
-                this.initLocalStorage();
-                this.isInitialized = true;
-                updateSyncIndicator('error', 'Ошибка инициализации');
-            }
-        }
-        
+                                var remoteMap = {};
+                                remoteTemplates.forEach(function(t) {
+                                    remoteMap[t.id] = t;
+                                });
+
+                                // Синхронизируем данные
+                                localTemplates.forEach(function(local) {
+                                    var remote = remoteMap[local.id];
+                                    if (!remote || new Date(local.dateModified) > new Date(remote.dateModified)) {
+                                        promises.push(
+                                            self.supabase
+                                                .from('templates')
+                                                .upsert([local])
+                                                .then(function(response) {
+                                                    if (response.error) throw response.error;
+                                                })
+                                        );
+                                    }
+                                });
+
+                                remoteTemplates.forEach(function(remote) {
+                                    var local = localMap[remote.id];
+                                    if (!local || new Date(remote.dateModified) > new Date(local.dateModified)) {
+                                        promises.push(self.addTemplate(remote));
+                                    }
+                                });
+
+                                return Promise.all(promises);
+                            });
+                    })
+                    .then(function() {
+                        self.lastSyncTime = now;
+                        updateSyncIndicator('synced');
+                        resolve();
+                    })
+                    .catch(function(error) {
+                        console.error('Ошибка синхронизации:', error);
+                        updateSyncIndicator('error', error.message);
+                        reject(error);
+                    });
+            });
+        },
+
         // Запуск автоматической синхронизации
-        async startAutoSync(interval = 5 * 60 * 1000) { // По умолчанию каждые 5 минут
+        startAutoSync: function(interval) {
+            var self = this;
+            interval = interval || 300000; // 5 минут
+            
             if (this.syncInterval) {
                 clearInterval(this.syncInterval);
             }
-            
-            const sync = async () => {
+
+            function sync() {
                 if (!navigator.onLine) {
                     updateSyncIndicator('error', 'Нет подключения');
                     return;
                 }
 
-                try {
-                    const isConnected = await this.checkSupabaseConnection();
-                    if (!isConnected) {
-                        updateSyncIndicator('error', 'Нет доступа к облаку');
-                        return;
-                    }
+                self.checkSupabaseConnection()
+                    .then(function(isConnected) {
+                        if (!isConnected) {
+                            updateSyncIndicator('error', 'Нет доступа к облаку');
+                            return;
+                        }
+                        return self.syncWithSupabase();
+                    })
+                    .catch(function(err) {
+                        console.error('Ошибка синхронизации:', err);
+                        updateSyncIndicator('error', err.message);
+                    });
+            }
 
-                    await this.syncWithSupabase();
-                    this.lastSyncTime = Date.now();
-                } catch (err) {
-                    console.error('Ошибка синхронизации:', err);
-                    updateSyncIndicator('error', err.message || 'Ошибка синхронизации');
-                }
-            };
-            
-            // Выполняем первичную синхронизацию
-            await sync();
-            
-            // Устанавливаем интервал для регулярной синхронизации
+            sync();
             this.syncInterval = setInterval(sync, interval);
-            
-            // Добавляем обработчик для синхронизации при восстановлении соединения
-            window.addEventListener('online', () => {
-                console.log('Соединение восстановлено, запускаем синхронизацию...');
-                sync();
-            });
-            
-            console.log('Автоматическая синхронизация активирована');
-        }
+        },
 
-        // Добавление в Supabase
-        async addToSupabase(template) {
-            if (!this.supabase) return;
-            try {
-                const { error } = await this.supabase
-                    .from('templates')
-                    .insert([template])
-                    .select();
-
-                if (error) {
-                    if (error.code === '404' || error.code === 'PGRST116') {
-                        await this.supabase.rpc('init_templates_table');
-                        return await this.addToSupabase(template);
-                    }
-                    throw error;
-                }
-            } catch (err) {
-                console.error('Ошибка добавления в Supabase:', err);
-                this.addToOfflineQueue('add', template);
-                throw err;
-            }
-        }
-
-        // Обновление в Supabase
-        async updateInSupabase(template) {
-            if (!this.supabase) return;
-            try {
-                const { error } = await this.supabase
-                    .from('templates')
-                    .update(template)
-                    .eq('id', template.id)
-                    .select();
-
-                if (error) {
-                    if (error.code === '404' || error.code === 'PGRST116') {
-                        await this.supabase.rpc('init_templates_table');
-                        return await this.updateInSupabase(template);
-                    }
-                    throw error;
-                }
-            } catch (err) {
-                console.error('Ошибка обновления в Supabase:', err);
-                this.addToOfflineQueue('update', template);
-                throw err;
-            }
-        }
-
-        // Удаление из Supabase
-        async deleteFromSupabase(id) {
-            if (!this.supabase) return;
-            try {
-                const { error } = await this.supabase
-                    .from('templates')
-                    .delete()
-                    .eq('id', id)
-                    .select();
-
-                if (error) {
-                    if (error.code === '404' || error.code === 'PGRST116') {
-                        await this.supabase.rpc('init_templates_table');
-                        return await this.deleteFromSupabase(id);
-                    }
-                    throw error;
-                }
-            } catch (err) {
-                console.error('Ошибка удаления из Supabase:', err);
-                this.addToOfflineQueue('delete', { id });
-                throw err;
-            }
-        }
-        
         // Остановка автоматической синхронизации
-        stopAutoSync() {
+        stopAutoSync: function() {
             if (this.syncInterval) {
                 clearInterval(this.syncInterval);
                 this.syncInterval = null;
                 console.log('Автоматическая синхронизация остановлена');
             }
-        }
-        
-        // Инициализация IndexedDB
-        async initIndexedDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => {
-                    this.db = request.result;
-                    resolve();
-                };
-                
-                request.onupgradeneeded = (event) => {
-                    const db = event.target.result;
-                    
-                    // Создаём хранилище для шаблонов
-                    if (!db.objectStoreNames.contains(DB_CONFIG.storeName)) {
-                        const store = db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath });
-                        
-                        // Создаём индексы для поиска
-                        store.createIndex('name', 'name', { unique: false });
-                        store.createIndex('category', 'category', { unique: false });
-                        store.createIndex('favorite', 'favorite', { unique: false });
-                        store.createIndex('dateCreated', 'dateCreated', { unique: false });
-                        store.createIndex('dateModified', 'dateModified', { unique: false });
-                    }
-                };
-            });
-        }
-        
-        // Инициализация localStorage
-        initLocalStorage() {
-            // Проверяем, есть ли уже данные
-            if (!localStorage.getItem('templates')) {
-                localStorage.setItem('templates', JSON.stringify([]));
-            }
-        }
-        
-        // Получение всех шаблонов
-        async getAllTemplates() {
-            await this.ensureInitialized();
-            
-            try {
-                if (this.useIndexedDB) {
-                    return await this.getAllFromIndexedDB();
-                } else {
-                    return this.getAllFromLocalStorage();
-                }
-            } catch (error) {
-                console.error('Ошибка при получении шаблонов:', error);
-                return [];
-            }
-        }
-        
-        // Получение из IndexedDB
-        async getAllFromIndexedDB() {
-            return new Promise((resolve, reject) => {
-                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readonly');
-                const store = transaction.objectStore(DB_CONFIG.storeName);
-                const request = store.getAll();
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result || []);
-            });
-        }
-        
-        // Получение из localStorage
-        getAllFromLocalStorage() {
-            try {
-                const templates = localStorage.getItem('templates');
-                return templates ? JSON.parse(templates) : [];
-            } catch (error) {
-                console.error('Ошибка при чтении из localStorage:', error);
-                return [];
-            }
-        }
-        
+        },
+
         // Добавление шаблона
-        async addTemplate(template) {
-            await this.ensureInitialized();
+        addTemplate: function(template) {
+            var self = this;
             
             try {
-                // Генерируем ID и даты
-                const newTemplate = {
-                    ...template,
-                    id: template.id || this.generateId(),
-                    dateCreated: template.dateCreated || new Date().toISOString(),
-                    dateModified: new Date().toISOString(),
-                    favorite: template.favorite || false
-                };
-                
-                // Сохраняем локально
-                if (this.useIndexedDB) {
-                    await this.addToIndexedDB(newTemplate);
-                } else {
-                    this.addToLocalStorage(newTemplate);
+                // Проверяем обязательные поля
+                if (!template) {
+                    throw new Error('Шаблон не может быть пустым');
                 }
-                
-                // Синхронизируем с Supabase если доступен и есть подключение
-                if (this.supabase && this.syncEnabled) {
-                    if (navigator.onLine) {
-                        try {
-                            const { error } = await this.supabase
+                if (!template.name || template.name.trim().length === 0) {
+                    throw new Error('Необходимо указать название шаблона');
+                }
+                if (!template.content || template.content.trim().length === 0) {
+                    throw new Error('Необходимо указать содержимое шаблона');
+                }
+
+                return this.ensureInitialized()
+                    .then(function() {
+                        var newTemplate = {
+                            id: template.id || generateId(),
+                            name: template.name.trim(),
+                            category: (template.category || '').trim(),
+                            content: template.content.trim(),
+                            dateCreated: template.dateCreated || new Date().toISOString(),
+                            dateModified: new Date().toISOString(),
+                            favorite: template.favorite || false
+                        };
+
+                        // Prepare payload for cloud without 'favorite' (kept locally)
+                        var cloudPayload = {
+                            id: newTemplate.id,
+                            name: newTemplate.name,
+                            category: newTemplate.category,
+                            content: newTemplate.content,
+                            dateCreated: newTemplate.dateCreated,
+                            dateModified: newTemplate.dateModified
+                        };
+
+                        // Сначала сохраняем в Supabase (omitting favorite)
+                        if (self.supabase && navigator.onLine) {
+                            updateSyncIndicator('syncing');
+                            return self.supabase
                                 .from('templates')
-                                .insert([newTemplate]);
-                            if (error) {
-                                console.warn('Ошибка синхронизации с Supabase:', error);
-                                this.addToOfflineQueue('add', newTemplate);
-                            }
-                        } catch (err) {
-                            console.warn('Ошибка сети при синхронизации:', err);
-                            this.addToOfflineQueue('add', newTemplate);
-                        }
-                    } else {
-                        this.addToOfflineQueue('add', newTemplate);
-                    }
-                }
-                
-                console.log('Шаблон добавлен:', newTemplate.id);
-                return newTemplate;
-            } catch (error) {
-                console.error('Ошибка при добавлении шаблона:', error);
-                throw error;
-            }
-        }
-        
-        // Добавление в IndexedDB
-        async addToIndexedDB(template) {
-            return new Promise((resolve, reject) => {
-                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readwrite');
-                const store = transaction.objectStore(DB_CONFIG.storeName);
-                const request = store.add(template);
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve();
-            });
-        }
-        
-        // Добавление в localStorage
-        addToLocalStorage(template) {
-            try {
-                const templates = this.getAllFromLocalStorage();
-                templates.push(template);
-                localStorage.setItem('templates', JSON.stringify(templates));
-            } catch (error) {
-                console.error('Ошибка при записи в localStorage:', error);
-                throw error;
-            }
-        }
-        
-        // Обновление шаблона
-        async updateTemplate(template) {
-            await this.ensureInitialized();
-            
-            try {
-                const updatedTemplate = {
-                    ...template,
-                    dateModified: new Date().toISOString()
-                };
-                
-                // Обновляем локально
-                if (this.useIndexedDB) {
-                    await this.updateInIndexedDB(updatedTemplate);
-                } else {
-                    this.updateInLocalStorage(updatedTemplate);
-                }
-                
-                // Синхронизируем с Supabase если доступен и есть подключение
-                if (this.supabase && this.syncEnabled) {
-                    if (navigator.onLine) {
-                        try {
-                            const { error } = await this.supabase
-                                .from('templates')
-                                .update(updatedTemplate)
-                                .eq('id', updatedTemplate.id);
-                            if (error) {
-                                console.warn('Ошибка синхронизации с Supabase:', error);
-                                this.addToOfflineQueue('update', updatedTemplate);
-                            }
-                        } catch (err) {
-                            console.warn('Ошибка сети при обновлении:', err);
-                            this.addToOfflineQueue('update', updatedTemplate);
-                        }
-                    } else {
-                        this.addToOfflineQueue('update', updatedTemplate);
-                    }
-                }
-                
-                console.log('Шаблон обновлён:', updatedTemplate.id);
-                return updatedTemplate;
-            } catch (error) {
-                console.error('Ошибка при обновлении шаблона:', error);
-                throw error;
-            }
-        }
-        
-        // Обновление в IndexedDB
-        async updateInIndexedDB(template) {
-            return new Promise((resolve, reject) => {
-                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readwrite');
-                const store = transaction.objectStore(DB_CONFIG.storeName);
-                const request = store.put(template);
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve();
-            });
-        }
-        
-        // Обновление в localStorage
-        updateInLocalStorage(template) {
-            try {
-                const templates = this.getAllFromLocalStorage();
-                const index = templates.findIndex(t => t.id === template.id);
-                
-                if (index !== -1) {
-                    templates[index] = template;
-                    localStorage.setItem('templates', JSON.stringify(templates));
-                } else {
-                    throw new Error('Шаблон не найден');
-                }
-            } catch (error) {
-                console.error('Ошибка при обновлении в localStorage:', error);
-                throw error;
-            }
-        }
-        
-        // Удаление шаблона
-        async deleteTemplate(id) {
-            await this.ensureInitialized();
-            
-            try {
-                // Удаляем локально
-                if (this.useIndexedDB) {
-                    await this.deleteFromIndexedDB(id);
-                } else {
-                    this.deleteFromLocalStorage(id);
-                }
-                
-                // Удаляем из Supabase если доступен и есть подключение
-                if (this.supabase && this.syncEnabled) {
-                    if (navigator.onLine) {
-                        try {
-                            const { error } = await this.supabase
-                                .from('templates')
-                                .delete()
-                                .eq('id', id);
-                            if (error) {
-                                console.warn('Ошибка удаления из Supabase:', error);
-                                this.addToOfflineQueue('delete', { id });
-                            }
-                        } catch (err) {
-                            console.warn('Ошибка сети при удалении:', err);
-                            this.addToOfflineQueue('delete', { id });
-                        }
-                    } else {
-                        this.addToOfflineQueue('delete', { id });
-                    }
-                }
-                
-                console.log('Шаблон удалён:', id);
-                return true;
-            } catch (error) {
-                console.error('Ошибка при удалении шаблона:', error);
-                throw error;
-            }
-        }
-        
-        // Удаление из IndexedDB
-        async deleteFromIndexedDB(id) {
-            return new Promise((resolve, reject) => {
-                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readwrite');
-                const store = transaction.objectStore(DB_CONFIG.storeName);
-                const request = store.delete(id);
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve();
-            });
-        }
-        
-        // Удаление из localStorage
-        deleteFromLocalStorage(id) {
-            try {
-                const templates = this.getAllFromLocalStorage();
-                const filteredTemplates = templates.filter(t => t.id !== id);
-                localStorage.setItem('templates', JSON.stringify(filteredTemplates));
-            } catch (error) {
-                console.error('Ошибка при удалении из localStorage:', error);
-                throw error;
-            }
-        }
-        
-                // Поиск шаблонов
-        async searchTemplates(query, category = 'all', favoritesOnly = false) {
-            await this.ensureInitialized();
-            
-            try {
-                // Пробуем сначала искать в Supabase если доступен
-                if (this.supabase && this.syncEnabled) {
-                    let supabaseQuery = this.supabase
-                        .from('templates')
-                        .select('*');
+                                .upsert([cloudPayload])
+                                .then(function(response) {
+                                    if (response.error) throw response.error;
 
-                    // Применяем фильтры
-                    if (category !== 'all') {
-                        supabaseQuery = supabaseQuery.eq('category', category);
-                    }
-                    if (favoritesOnly) {
-                        supabaseQuery = supabaseQuery.eq('favorite', true);
-                    }
-                    if (query) {
-                        // Используем полнотекстовый поиск
-                        supabaseQuery = supabaseQuery.textSearch(
-                            'content',
-                            query,
-                            {
-                                config: 'russian',
-                                type: 'plain'
-                            }
-                        );
-                    }
-
-                    const { data, error } = await supabaseQuery;
-                    if (!error && data) {
-                        return data;
-                    }
-                }
-
-                // Если Supabase недоступен или произошла ошибка, ищем локально
-                const templates = await this.getAllTemplates();
-                return templates.filter(template => {
-                    // Фильтр по категории
-                    if (category !== 'all' && template.category !== category) {
-                        return false;
-                    }
-                    
-                    // Фильтр по избранному
-                    if (favoritesOnly && !template.favorite) {
-                        return false;
-                    }
-                    
-                    // Поиск по имени и содержимому
-                    if (query) {
-                        const searchStr = query.toLowerCase();
-                        return template.name.toLowerCase().includes(searchStr) ||
-                               template.content.toLowerCase().includes(searchStr);
-                    }
-                    
-                    return true;
-                });
-            } catch (error) {
-                console.error('Error searching templates:', error);
-                return [];
-            }
-        }
-        
-        // Получение категорий
-        async getCategories() {
-            await this.ensureInitialized();
-            
-            try {
-                const templates = await this.getAllTemplates();
-                const categories = [...new Set(templates.map(t => t.category).filter(Boolean))];
-                return categories.sort();
-            } catch (error) {
-                console.error('Ошибка при получении категорий:', error);
-                return [];
-            }
-        }
-        
-        // Экспорт данных
-        async exportData() {
-            await this.ensureInitialized();
-            
-            try {
-                const templates = await this.getAllTemplates();
-                return JSON.stringify(templates, null, 2);
-            } catch (error) {
-                console.error('Ошибка при экспорте данных:', error);
-                throw error;
-            }
-        }
-        
-        // Импорт данных
-        async importData(jsonData, merge = false) {
-            await this.ensureInitialized();
-            
-            try {
-                const templates = JSON.parse(jsonData);
-                
-                if (!Array.isArray(templates)) {
-                    throw new Error('Неверный формат данных');
-                }
-                
-                if (merge) {
-                    // Объединяем с существующими данными
-                    const existingTemplates = await this.getAllTemplates();
-                    const existingIds = new Set(existingTemplates.map(t => t.id));
-                    
-                    for (const template of templates) {
-                        if (!existingIds.has(template.id)) {
-                            await this.addTemplate(template);
-                        }
-                    }
-                } else {
-                    // Заменяем все данные
-                    if (this.useIndexedDB) {
-                        await this.clearIndexedDB();
-                        for (const template of templates) {
-                            await this.addTemplate(template);
-                        }
-                    } else {
-                        localStorage.setItem('templates', JSON.stringify(templates));
-                    }
-                }
-                
-                console.log('Данные импортированы:', templates.length, 'шаблонов');
-                return templates.length;
-            } catch (error) {
-                console.error('Ошибка при импорте данных:', error);
-                throw error;
-            }
-        }
-
-        // Импорт шаблонов из JSON (обёртка для совместимости)
-        async importTemplates(jsonString, merge = false) {
-            await this.ensureInitialized();
-            try {
-                // Delegate to importData which already handles parsing and insertion
-                return await this.importData(jsonString, merge);
-            } catch (error) {
-                console.error('Ошибка при импорте JSON шаблонов:', error);
-                throw error;
-            }
-        }
-
-        // Импорт шаблонов из TXT
-        // Формат: несколько блоков, разделённых пустой строкой или строкой с ---
-        // В каждом блоке первая строка - название шаблона, вторая (опционально) может быть 'Category: Название'
-        async importTemplatesFromTxt(txtData, defaultCategory = 'Импортировано из TXT') {
-            await this.ensureInitialized();
-
-            try {
-                if (!txtData || typeof txtData !== 'string') {
-                    throw new Error('Пустые или неверные данные для импорта из TXT');
-                }
-
-                // Разбиваем на блоки: сначала проверяем явные разделители '---', иначе двойной перенос строки
-                let blocks = [];
-                if (/^\s*---\s*$/m.test(txtData)) {
-                    blocks = txtData.split(/^\s*---\s*$/m);
-                } else {
-                    blocks = txtData.split(/\r?\n\r?\n+/);
-                }
-
-                const created = [];
-
-                for (const raw of blocks) {
-                    const block = raw.trim();
-                    if (!block) continue;
-
-                    const lines = block.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-                    if (lines.length === 0) continue;
-
-                    let name = lines[0];
-                    let category = defaultCategory;
-                    let contentLines = [];
-
-                    // Проверяем, указана ли вторая строке категория в виде 'Category: ...' или 'Категория: ...'
-                    if (lines.length > 1) {
-                        const m = lines[1].match(/^(?:Category:|Категория:)\s*(.+)$/i);
-                        if (m) {
-                            category = m[1].trim() || defaultCategory;
-                            contentLines = lines.slice(2);
+                                    // После успешного сохранения в Supabase, сохраняем локально (with favorite)
+                                    return (self.useIndexedDB ? 
+                                        self.addToIndexedDB(newTemplate) : 
+                                        Promise.resolve(self.addToLocalStorage(newTemplate)))
+                                        .then(function() {
+                                            updateSyncIndicator('synced');
+                                            notifySubscribers('add', newTemplate);
+                                            return newTemplate;
+                                        });
+                                })
+                                .catch(function(err) {
+                                    console.error('Ошибка при сохранении в Supabase:', err);
+                                    updateSyncIndicator('error', 'Ошибка сохранения в облаке');
+                                    throw new Error('Не удалось сохранить шаблон в облаке');
+                                });
                         } else {
-                            contentLines = lines.slice(1);
+                            // If no cloud, still save locally
+                            if (self.useIndexedDB) {
+                                return self.addToIndexedDB(newTemplate).then(function() {
+                                    updateSyncIndicator('synced');
+                                    return newTemplate;
+                                });
+                            } else {
+                                return Promise.resolve(self.addToLocalStorage(newTemplate));
+                            }
                         }
+                    });
+            } catch (error) {
+                updateSyncIndicator('error', error.message);
+                return Promise.reject(error);
+            }
+        },
+
+        // Добавление в IndexedDB
+        addToIndexedDB: function(template) {
+            var self = this;
+            return new Promise(function(resolve, reject) {
+                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readwrite');
+                var store = transaction.objectStore(DB_CONFIG.storeName);
+                var request = store.add(template);
+                
+                request.onerror = function() {
+                    reject(request.error);
+                };
+                
+                request.onsuccess = function() {
+                    resolve(template);
+                };
+            });
+        },
+
+        // Добавление в localStorage
+        addToLocalStorage: function(template) {
+            var templates = this.getAllFromLocalStorage();
+            templates.push(template);
+            localStorage.setItem('templates', JSON.stringify(templates));
+            return template;
+        },
+
+        // Получение всех шаблонов
+        getAllTemplates: function() {
+            var self = this;
+            return this.ensureInitialized()
+                .then(function() {
+                    if (self.supabase && navigator.onLine) {
+                        // Получаем данные из Supabase
+                        updateSyncIndicator('syncing');
+                        return self.supabase
+                            .from('templates')
+                            .select('*')
+                            .then(function(response) {
+                                if (response.error) throw response.error;
+                                updateSyncIndicator('synced');
+                                
+                                // Обновляем локальное хранилище
+                                if (self.useIndexedDB) {
+                                    return self.updateLocalStorage(response.data)
+                                        .then(function() {
+                                            return response.data;
+                                        });
+                                } else {
+                                    localStorage.setItem('templates', JSON.stringify(response.data));
+                                    return response.data;
+                                }
+                            })
+                            .catch(function(error) {
+                                console.error('Ошибка при получении данных из Supabase:', error);
+                                updateSyncIndicator('error', 'Ошибка получения данных');
+                                // В случае ошибки, возвращаем локальные данные
+                                return self.useIndexedDB ? 
+                                    self.getAllFromIndexedDB() : 
+                                    Promise.resolve(self.getAllFromLocalStorage());
+                            });
+                    } else {
+                        // Если нет подключения, используем локальные данные
+                        updateSyncIndicator('error', 'Нет подключения к облаку');
+                        return self.useIndexedDB ? 
+                            self.getAllFromIndexedDB() : 
+                            Promise.resolve(self.getAllFromLocalStorage());
+                    }
+                });
+        },
+
+        // Получение из IndexedDB
+        getAllFromIndexedDB: function() {
+            var self = this;
+            return new Promise(function(resolve, reject) {
+                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readonly');
+                var store = transaction.objectStore(DB_CONFIG.storeName);
+                var request = store.getAll();
+                
+                request.onerror = function() {
+                    reject(request.error);
+                };
+                
+                request.onsuccess = function() {
+                    resolve(request.result || []);
+                };
+            });
+        },
+
+        // Получение из localStorage
+        getAllFromLocalStorage: function() {
+            var templates = localStorage.getItem('templates');
+            return templates ? JSON.parse(templates) : [];
+        },
+
+        // Обновление шаблона
+        updateTemplate: function(template) {
+            var self = this;
+            
+            // Проверяем обязательные поля
+            if (!template || !template.id) {
+                return Promise.reject(new Error('Необходимо указать ID шаблона'));
+            }
+            if (!template.name || !template.content) {
+                return Promise.reject(new Error('Необходимо указать название и содержимое шаблона'));
+            }
+
+            return this.ensureInitialized()
+                .then(function() {
+                    if (!self.supabase || !navigator.onLine) {
+                        updateSyncIndicator('error', 'Нет подключения к облаку');
+                        throw new Error('Отсутствует подключение к облачному хранилищу');
                     }
 
-                    const content = contentLines.join('\n').trim();
+                    // Сначала проверяем существование шаблона в Supabase
+                    updateSyncIndicator('syncing');
+                    return self.supabase
+                        .from('templates')
+                        .select()
+                        .eq('id', template.id)
+                        .single()
+                        .then(function(response) {
+                            if (response.error) throw response.error;
+                            
+                            var existingTemplate = response.data;
+                            if (!existingTemplate) {
+                                throw new Error('Шаблон не найден в облачном хранилище');
+                            }
 
-                    const templateObj = {
-                        name: name || 'Без названия',
-                        category: category || defaultCategory,
-                        content: content || '',
-                        favorite: false
-                    };
+                            // preserve favorite state from localStorage favorites list
+                            var favs = [];
+                            try { favs = JSON.parse(localStorage.getItem('favorites') || '[]'); } catch (e) { favs = []; }
+                            var isFav = favs.includes(String(template.id));
 
-                    // Используем addTemplate чтобы корректно проставить id и даты
-                    const newT = await this.addTemplate(templateObj);
-                    created.push(newT);
-                }
+                            var updatedTemplate = {
+                                id: template.id,
+                                name: template.name.trim(),
+                                category: (template.category || '').trim(),
+                                content: template.content.trim(),
+                                dateCreated: existingTemplate.dateCreated,
+                                dateModified: new Date().toISOString(),
+                                favorite: isFav
+                            };
 
-                console.log('Импортировано шаблонов из TXT:', created.length);
-                return created.length;
-            } catch (error) {
-                console.error('Ошибка при импорте из TXT:', error);
-                throw error;
-            }
-        }
-        
-        // Очистка IndexedDB
-        async clearIndexedDB() {
-            return new Promise((resolve, reject) => {
-                const transaction = this.db.transaction([DB_CONFIG.storeName], 'readwrite');
-                const store = transaction.objectStore(DB_CONFIG.storeName);
-                const request = store.clear();
+                            // Prepare cloud payload without 'favorite'
+                            var cloudPayload = {
+                                id: updatedTemplate.id,
+                                name: updatedTemplate.name,
+                                category: updatedTemplate.category,
+                                content: updatedTemplate.content,
+                                dateCreated: updatedTemplate.dateCreated,
+                                dateModified: updatedTemplate.dateModified
+                            };
+
+                            // Обновляем в Supabase (without favorite)
+                            return self.supabase
+                                .from('templates')
+                                .update(cloudPayload)
+                                .eq('id', template.id)
+                                .then(function(response) {
+                                    if (response.error) throw response.error;
+
+                                    // После успешного обновления в Supabase, обновляем локально (including favorite)
+                                    return (self.useIndexedDB ?
+                                        self.updateInIndexedDB(updatedTemplate) :
+                                        Promise.resolve(self.updateInLocalStorage(updatedTemplate)))
+                                        .then(function() {
+                                            updateSyncIndicator('synced');
+                                            notifySubscribers('update', updatedTemplate);
+                                            return updatedTemplate;
+                                        });
+                                });
+                        })
+                        .catch(function(error) {
+                            console.error('Ошибка при обновлении шаблона:', error);
+                            updateSyncIndicator('error', 'Ошибка обновления в облаке');
+                            throw new Error('Не удалось обновить шаблон: ' + error.message);
+                        });
+                });
+        },
+
+        // Обновление в IndexedDB
+        updateInIndexedDB: function(template) {
+            var self = this;
+            return new Promise(function(resolve, reject) {
+                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readwrite');
+                var store = transaction.objectStore(DB_CONFIG.storeName);
+                var request = store.put(template);
                 
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve();
-            });
-        }
-        
-        // Очистка localStorage
-        clearLocalStorage() {
-            try {
-                localStorage.removeItem('templates');
-                localStorage.setItem('templates', JSON.stringify([]));
-            } catch (error) {
-                console.error('Ошибка при очистке localStorage:', error);
-                throw error;
-            }
-        }
-        
-        // Очистка всех данных
-        async clearAll() {
-            await this.ensureInitialized();
-            
-            try {
-                if (this.useIndexedDB) {
-                    await this.clearIndexedDB();
-                } else {
-                    this.clearLocalStorage();
-                }
-                
-                console.log('Все данные очищены');
-            } catch (error) {
-                console.error('Ошибка при очистке данных:', error);
-                throw error;
-            }
-        }
-        
-        // Проверка инициализации
-        async ensureInitialized() {
-            if (!this.isInitialized) {
-                await this.init();
-            }
-        }
-        
-        // Генерация ID
-        generateId() {
-            return Date.now().toString(36) + Math.random().toString(36).substr(2);
-        }
-        
-        // Получение статистики
-        async getStats() {
-            await this.ensureInitialized();
-            
-            try {
-                const templates = await this.getAllTemplates();
-                
-                return {
-                    total: templates.length,
-                    favorites: templates.filter(t => t.favorite).length,
-                    categories: (await this.getCategories()).length,
-                    storageType: this.useIndexedDB ? 'IndexedDB' : 'localStorage'
+                request.onerror = function() {
+                    reject(request.error);
                 };
-            } catch (error) {
-                console.error('Ошибка при получении статистики:', error);
-                return { total: 0, favorites: 0, categories: 0, storageType: 'unknown' };
+                
+                request.onsuccess = function() {
+                    resolve(template);
+                };
+            });
+        },
+
+        // Обновление в localStorage
+        updateInLocalStorage: function(template) {
+            var templates = this.getAllFromLocalStorage();
+            var index = templates.findIndex(function(t) { return t.id === template.id; });
+            
+            if (index !== -1) {
+                templates[index] = template;
+                localStorage.setItem('templates', JSON.stringify(templates));
+                return template;
             }
+            
+            throw new Error('Шаблон не найден');
+        },
+
+        // Удаление шаблона
+        deleteTemplate: function(id) {
+            var self = this;
+            if (!id) {
+                return Promise.reject(new Error('Необходимо указать ID шаблона для удаления'));
+            }
+
+            return this.ensureInitialized()
+                .then(function() {
+                    if (!self.supabase || !navigator.onLine) {
+                        updateSyncIndicator('error', 'Нет подключения к облаку');
+                        throw new Error('Отсутствует подключение к облачному хранилищу');
+                    }
+
+                    updateSyncIndicator('syncing');
+                    // Сначала удаляем из Supabase
+                    return self.supabase
+                        .from('templates')
+                        .delete()
+                        .eq('id', id)
+                        .then(function(response) {
+                            if (response.error) throw response.error;
+
+                            // После успешного удаления из Supabase, удаляем локально
+                            return (self.useIndexedDB ?
+                                self.deleteFromIndexedDB(id) :
+                                Promise.resolve(self.deleteFromLocalStorage(id)))
+                                .then(function() {
+                                    updateSyncIndicator('synced');
+                                    notifySubscribers('delete', id);
+                                    return true;
+                                });
+                        })
+                        .catch(function(error) {
+                            console.error('Ошибка при удалении шаблона:', error);
+                            updateSyncIndicator('error', 'Ошибка удаления из облака');
+                            throw new Error('Не удалось удалить шаблон: ' + error.message);
+                        });
+                });
+        },
+
+        // Удаление из IndexedDB
+        deleteFromIndexedDB: function(id) {
+            var self = this;
+            return new Promise(function(resolve, reject) {
+                var transaction = self.db.transaction([DB_CONFIG.storeName], 'readwrite');
+                var store = transaction.objectStore(DB_CONFIG.storeName);
+                var request = store.delete(id);
+                
+                request.onerror = function() {
+                    reject(request.error);
+                };
+                
+                request.onsuccess = function() {
+                    resolve(true);
+                };
+            });
+        },
+
+        // Удаление из localStorage
+        deleteFromLocalStorage: function(id) {
+            var templates = this.getAllFromLocalStorage();
+            var filteredTemplates = templates.filter(function(t) { return t.id !== id; });
+            localStorage.setItem('templates', JSON.stringify(filteredTemplates));
+            return true;
+        },
+
+        // Поиск шаблонов
+        searchTemplates: function(query, category, favoritesOnly) {
+            var self = this;
+            return this.ensureInitialized()
+                .then(function() {
+                    return self.getAllTemplates()
+                        .then(function(templates) {
+                            return templates.filter(function(template) {
+                                // Фильтр по категории
+                                if (category && category !== 'all' && template.category !== category) {
+                                    return false;
+                                }
+                                
+                                // Фильтр по избранному — используем локальное хранилище favorites (localStorage)
+                                if (favoritesOnly) {
+                                    try {
+                                        var favs = JSON.parse(localStorage.getItem('favorites') || '[]');
+                                        if (!favs.includes(String(template.id))) return false;
+                                    } catch (err) {
+                                        // Если не удалось прочитать favorites — считаем как не избранное
+                                        return false;
+                                    }
+                                }
+                                
+                                // Поиск по запросу
+                                if (query) {
+                                    query = query.toLowerCase();
+                                    return template.name.toLowerCase().includes(query) || 
+                                           template.content.toLowerCase().includes(query) ||
+                                           (template.category && template.category.toLowerCase().includes(query));
+                                }
+                                
+                                return true;
+                            });
+                        });
+                });
+        },
+
+        // Получение списка категорий
+        getCategories: function() {
+            var self = this;
+            return this.ensureInitialized()
+                .then(function() {
+                    if (self.supabase && navigator.onLine) {
+                        // Получаем категории из Supabase
+                        return self.supabase
+                            .from('templates')
+                            .select('category')
+                            .then(function(response) {
+                                if (response.error) throw response.error;
+                                
+                                // Получаем уникальные категории
+                                var categories = response.data.reduce(function(acc, template) {
+                                    if (template.category && !acc.includes(template.category)) {
+                                        acc.push(template.category);
+                                    }
+                                    return acc;
+                                }, []);
+                                
+                                // Сортируем категории
+                                return categories.sort(function(a, b) {
+                                    return a.localeCompare(b, 'ru');
+                                });
+                            });
+                    } else {
+                        // Если нет подключения, используем локальные данные
+                        return self.getAllTemplates()
+                            .then(function(templates) {
+                                var categories = templates.reduce(function(acc, template) {
+                                    if (template.category && !acc.includes(template.category)) {
+                                        acc.push(template.category);
+                                    }
+                                    return acc;
+                                }, []);
+                                
+                                return categories.sort(function(a, b) {
+                                    return a.localeCompare(b, 'ru');
+                                });
+                            });
+                    }
+                });
+        },
+
+        // Принудительная синхронизация с Supabase
+        forceSyncWithSupabase: function() {
+            var self = this;
+            
+            if (!this.supabase || !navigator.onLine) {
+                updateSyncIndicator('error', 'Нет подключения к облаку');
+                return Promise.reject(new Error('Отсутствует подключение к облачному хранилищу'));
+            }
+
+            updateSyncIndicator('syncing');
+            
+            // Получаем все данные из Supabase
+            return this.supabase
+                .from('templates')
+                .select('*')
+                .then(function(response) {
+                    if (response.error) throw response.error;
+                    
+                    var cloudTemplates = response.data;
+                    
+                    // Очищаем локальное хранилище
+                    return (self.useIndexedDB ?
+                        new Promise(function(resolve, reject) {
+                            var transaction = self.db.transaction([DB_CONFIG.storeName], 'readwrite');
+                            var store = transaction.objectStore(DB_CONFIG.storeName);
+                            var request = store.clear();
+                            
+                            request.onerror = reject;
+                            request.onsuccess = function() {
+                                resolve(cloudTemplates);
+                            };
+                        }) :
+                        Promise.resolve(localStorage.setItem('templates', '[]'))
+                            .then(function() {
+                                return cloudTemplates;
+                            }))
+                        .then(function(templates) {
+                            // Добавляем все шаблоны из облака в локальное хранилище
+                            var promises = templates.map(function(template) {
+                                return self.useIndexedDB ?
+                                    self.addToIndexedDB(template) :
+                                    Promise.resolve(self.addToLocalStorage(template));
+                            });
+                            
+                            return Promise.all(promises);
+                        })
+                        .then(function() {
+                            updateSyncIndicator('synced');
+                            return true;
+                        });
+                })
+                .catch(function(error) {
+                    console.error('Ошибка при синхронизации с Supabase:', error);
+                    updateSyncIndicator('error', 'Ошибка синхронизации');
+                    throw error;
+                });
+        },
+
+        // Обновление локального хранилища
+        updateLocalStorage: function(templates) {
+            var self = this;
+            if (this.useIndexedDB) {
+                return new Promise(function(resolve, reject) {
+                    var transaction = self.db.transaction([DB_CONFIG.storeName], 'readwrite');
+                    var store = transaction.objectStore(DB_CONFIG.storeName);
+                    
+                    // Очищаем хранилище
+                    store.clear().onsuccess = function() {
+                        // Добавляем все шаблоны
+                        var promises = templates.map(function(template) {
+                            return new Promise(function(resolve, reject) {
+                                var request = store.add(template);
+                                request.onsuccess = resolve;
+                                request.onerror = reject;
+                            });
+                        });
+                        
+                        Promise.all(promises)
+                            .then(resolve)
+                            .catch(reject);
+                    };
+                });
+            } else {
+                localStorage.setItem('templates', JSON.stringify(templates));
+                return Promise.resolve();
+            }
+        },
+
+        // Проверка инициализации
+        ensureInitialized: function() {
+            var self = this;
+            if (!this.isInitialized) {
+                return this.init();
+            }
+            return Promise.resolve();
         }
+    };
+
+    // Создаём и инициализируем экземпляр базы данных при загрузке страницы
+    function createAndInitDatabase() {
+        var db = new TemplateDatabase();
+        window.TemplateDB = db;
+        // Добавляем методы подписки в публичный API
+        window.TemplateDB.subscribe = subscribe;
+        window.TemplateDB.unsubscribe = unsubscribe;
+        return db.init().then(function() {
+            console.log('База данных успешно инициализирована');
+        }).catch(function(err) {
+            console.error('Ошибка при инициализации базы данных:', err);
+        });
     }
-    
-    // Создаём экземпляр базы данных
-    const db = new TemplateDatabase();
-    
-    // Экспортируем в глобальную область
-    window.TemplateDB = db;
-    
-    // Автоматическая инициализация
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => db.init());
+        document.addEventListener('DOMContentLoaded', createAndInitDatabase);
     } else {
-        db.init();
+        createAndInitDatabase();
     }
-    
 })();

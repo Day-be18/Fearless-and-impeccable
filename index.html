@@ -16,6 +16,7 @@
     <meta name="msapplication-config" content="/browserconfig.xml">
     <title>Fearless and impeccable - Шаблоны на любой случай</title>
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/favorite-button.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -170,60 +171,68 @@
         <i class="fas fa-arrow-up" aria-hidden="true"></i>
     </button>
 
-        <script src="js/database.js"></script>
-        <script>
-                window.REMOTE_API_URL = 'https://fearless-and-impeccable.onrender.com';
-        </script>
-        <!-- Supabase CDN fallback (browser ESM). Use this if npm isn't available locally.
-                 It imports createClient from jsDelivr as an ESM module and will set window.supabase
-                 only when SUPABASE_URL and SUPABASE_ANON_KEY globals are provided. -->
-            <!-- Вставьте ваш SUPABASE_URL и SUPABASE_ANON_KEY (ANON/public key) перед модульным скриптом ниже -->
-            <script>
-                // Замените <YOUR-PROJECT-REF> на референс вашего проекта (например: vhesirusskfdnbrxlp)
-                // Пример URL: https://vhesirusskfdnbrxlp.supabase.co
-                window.SUPABASE_URL = window.SUPABASE_URL || 'https://vhesirusqkfdnbrxlphx.supabase.co';
-                // Публичный ANON key (вы предоставили этот ключ)
-                window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZoZXNpcnVzcWtmZG5icnhscGh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE5NDc2NTUsImV4cCI6MjA3NzUyMzY1NX0.ciJr4k_ZYI_mI8Ly0mDENG4LN5c6BAaxuMAMbYUIWHg';
-                // NOTE: ANON key — публичный для клиентского использования. Не храните service_role (админ) ключи в клиентском коде.
-            </script>
-            <script type="module">
-                import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-                if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.SUPABASE_URL.indexOf('<YOUR-PROJECT-REF>') === -1) {
-        try {
-          window.supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-          console.info('Supabase initialized via CDN');
-          
-          // Проверка подключения через health check
-          window.supabase
-            .from('templates')
-            .select('id', { count: 'exact', head: true })
-            .limit(1)
-            .then(({ error }) => {
-              if (error) {
-                if (error.code === '404' || error.code === 'PGRST116') {
-                  console.warn('Таблица templates не существует, создаём...');
-                  return window.supabase.rpc('init_templates_table');
-                }
-                console.error('Ошибка подключения к Supabase:', error);
-              } else {
-                console.info('Успешное подключение к Supabase');
-              }
-            })
-            .catch(err => {
-              if (err.message?.includes('Failed to fetch')) {
-                console.warn('Supabase недоступен, работаем локально');
-              } else {
-                console.error('Ошибка при проверке подключения:', err);
-              }
-            });
+        <!-- Инициализация конфигурации -->
+<script>
+    window.REMOTE_API_URL = 'https://fearless-and-impeccable.onrender.com';
+    window.SUPABASE_URL = 'https://vhesirusqkfdnbrxlphx.supabase.co';
+    window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZoZXNpcnVzcWtmZG5icnhscGh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE5NDc2NTUsImV4cCI6MjA3NzUyMzY1NX0.ciJr4k_ZYI_mI8Ly0mDENG4LN5c6BAaxuMAMbYUIWHg';
+    window.ENABLE_SUPABASE_DEBUG = true;
+</script>
 
+<!-- Инициализация Supabase -->
+<script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    
+    async function initSupabase() {
+        try {
+            if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+                throw new Error('Отсутствуют необходимые параметры для инициализации Supabase');
+            }
+
+            window.supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+            console.log('Supabase клиент создан');
+
+            // Сначала пытаемся создать таблицу
+            try {
+                console.log('Создаём таблицу templates если её нет...');
+                const { error: createError } = await window.supabase.rpc('create_templates_table');
+                if (createError) {
+                    console.error('Ошибка при создании таблицы:', createError);
+                } else {
+                    console.log('Таблица успешно создана или уже существует');
+                }
+            } catch (err) {
+                console.error('Ошибка при вызове create_templates_table:', err);
+            }
+
+            // Теперь проверяем подключение
+            const { error } = await window.supabase
+                .from('templates')
+                .select('id', { count: 'exact', head: true })
+                .limit(1);
+
+            if (error) {
+                throw error;
+            }
+
+            console.log('Supabase успешно инициализирован и готов к работе');
+            return true;
         } catch (err) {
-          console.warn('Failed to initialize Supabase via CDN:', err);
+            console.error('Ошибка при инициализации Supabase:', err);
+            window.supabase = null; // Сбрасываем некорректную инициализацию
+            return false;
         }
-      } else {
-        console.warn('Supabase not initialized: set a real SUPABASE_URL and SUPABASE_ANON_KEY or install via npm');
-      }
-            </script>
+    }
+
+    // Запускаем инициализацию
+    window.addEventListener('load', () => {
+        console.log('Начинаем инициализацию Supabase...');
+        initSupabase();
+    });
+</script>
+
+<!-- База данных -->
+<script src="js/database.js"></script>
         <script src="js/snow.js"></script>
     <script src="js/ui-enhancements.js"></script>
     <script>
