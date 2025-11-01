@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="description" content="Шаблоны для чатов на любой случай - удобное управление и поиск">
+    <meta name="keywords" content="шаблоны, чат, сообщения, бесстрашные, безупречные">
+    <meta name="author" content="Fearless and impeccable">
+    <meta name="theme-color" content="#4a6fa5">
+    <meta name="color-scheme" content="light dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Шаблоны">
+    <meta name="msapplication-TileColor" content="#4a6fa5">
+    <meta name="msapplication-config" content="/browserconfig.xml">
+    <title>Fearless and impeccable - Шаблоны на любой случай</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+</head>
+<body>
+    <header class="header" role="banner">
+        <div class="container">
+            <h1 class="logo">Бесстрашные и безупречные</h1>
+            <p class="tagline">Шаблоны для чатов на любой случай</p>
+            <!-- Верхние кнопки: тема и снег -->
+            <div class="header-controls" aria-hidden="false">
+                <div id="syncIndicator" class="sync-indicator" title="Статус синхронизации" role="status">
+                    <i class="fas fa-cloud" aria-hidden="true"></i>
+                    <span class="sync-status">Локально</span>
+                </div>
+                <button id="themeToggleBtn" class="btn icon-btn" title="Переключить тёмную тему" aria-label="Переключить тёмную тему">
+                    <i class="fas fa-moon" aria-hidden="true"></i>
+                    <span class="sr-only">Тема</span>
+                </button>
+                <button id="snowToggleBtn" class="btn icon-btn" title="Включить/выключить снег" aria-label="Переключить падающий снег" aria-pressed="false">
+                    <i class="fas fa-snowflake" aria-hidden="true"></i>
+                    <span class="sr-only">Снег</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main" role="main">
+        <div class="container">
+            <section class="controls" aria-label="Управление шаблонами">
+                <button id="addTemplateBtn" class="btn btn-primary" aria-label="Добавить новый шаблон">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                    <span>Добавить шаблон</span>
+                </button>
+                <button id="importBtn" class="btn btn-secondary" aria-label="Импортировать шаблоны">
+                    <i class="fas fa-file-import" aria-hidden="true"></i>
+                    <span>Импорт</span>
+                </button>
+                <!-- theme button moved to header controls -->
+                <label class="favorites-toggle" for="favoritesOnly">
+                    <input type="checkbox" id="favoritesOnly" aria-label="Показать только избранные шаблоны">
+                    <span>⭐ Только избранные</span>
+                </label>
+                <div class="search-container" role="search">
+                    <input type="text" id="searchInput" placeholder="Поиск шаблонов..." aria-label="Поиск по названию и содержанию">
+                    <select id="categoryFilter" class="category-select" aria-label="Фильтр по категории">
+                        <option value="all">Все категории</option>
+                        <!-- Категории будут добавлены динамически -->
+                    </select>
+                    <select id="sortSelect" title="Сортировка" aria-label="Выберите способ сортировки">
+                        <option value="dateModified_desc">Изменённые (сначала новые)</option>
+                        <option value="dateModified_asc">Изменённые (сначала старые)</option>
+                        <option value="name_asc">Название (А→Я)</option>
+                        <option value="name_desc">Название (Я→А)</option>
+                        <option value="dateCreated_desc">Созданные (сначала новые)</option>
+                        <option value="dateCreated_asc">Созданные (сначала старые)</option>
+                    </select>
+                    <!-- Множественный выбор удалён -->
+                </div>
+            </section>
+
+            <!-- Панель массовых операций удалена -->
+
+            <section class="templates-grid" id="templatesGrid" aria-label="Список шаблонов">
+                <!-- Шаблоны будут добавлены с помощью JavaScript -->
+            </section>
+        </div>
+    </main>
+
+    <!-- Модальное окно для добавления/редактирования шаблона -->
+    <div class="modal" id="templateModal" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
+        <div class="modal-content">
+            <button type="button" class="close-btn" aria-label="Закрыть модальное окно">&times;</button>
+            <h2 id="modalTitle">Добавить шаблон</h2>
+            <form id="templateForm" role="form">
+                <div class="form-group">
+                    <label for="templateName">Название шаблона:</label>
+                    <input type="text" id="templateName" required aria-required="true" aria-describedby="templateNameHelp">
+                    <div id="templateNameHelp" class="sr-only">Введите название для вашего шаблона</div>
+                </div>
+                <div class="form-group">
+                    <label for="templateCategory">Категория:</label>
+                    <input type="text" id="templateCategory" aria-describedby="templateCategoryHelp">
+                    <div id="templateCategoryHelp" class="sr-only">Укажите категорию для группировки шаблонов</div>
+                </div>
+                <div class="form-group">
+                    <label for="templateContent">Содержание:</label>
+                    <textarea id="templateContent" rows="10" required aria-required="true" aria-describedby="templateContentHelp"></textarea>
+                    <div id="templateContentHelp" class="sr-only">Введите текст вашего шаблона</div>
+                </div>
+                <input type="hidden" id="templateId">
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для импорта/экспорта -->
+    <div class="modal" id="importExportModal" role="dialog" aria-labelledby="importExportTitle" aria-hidden="true">
+        <div class="modal-content">
+            <button type="button" class="close-btn" aria-label="Закрыть модальное окно">&times;</button>
+            <h2 id="importExportTitle">Импорт/Экспорт</h2>
+            <div id="importOptions" style="display: none; margin-bottom: 15px;">
+                <div class="import-tabs" role="tablist">
+                    <button id="importJsonTab" class="import-tab active" role="tab" aria-selected="true" aria-controls="importJsonPanel">JSON</button>
+                    <button id="importTxtTab" class="import-tab" role="tab" aria-selected="false" aria-controls="importTxtPanel">TXT</button>
+                </div>
+                <div id="importJsonPanel" role="tabpanel" aria-labelledby="importJsonTab">
+                    <!-- Содержимое для JSON импорта -->
+                </div>
+                <div id="importTxtPanel" role="tabpanel" aria-labelledby="importTxtTab" style="display: none;">
+                    <!-- Содержимое для TXT импорта -->
+                </div>
+                <div class="import-file-upload">
+                    <label for="fileInput" class="btn btn-secondary" aria-label="Загрузить файл для импорта">
+                        <i class="fas fa-file-upload" aria-hidden="true"></i>
+                        <span>Загрузить файл</span>
+                    </label>
+                    <input type="file" id="fileInput" accept=".json,.txt" style="display: none;" aria-describedby="fileInputHelp">
+                    <span id="fileName" aria-live="polite"></span>
+                    <div id="fileInputHelp" class="sr-only">Выберите файл JSON или TXT для импорта</div>
+                </div>
+                <div id="txtImportOptions" style="display: none; margin-top: 10px;">
+                    <label for="defaultCategory">Категория для шаблонов:</label>
+                    <input type="text" id="defaultCategory" value="Импортировано из TXT" style="width: 100%; padding: 8px; margin-top: 5px;">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="importExportContent">Содержимое:</label>
+                <textarea id="importExportContent" rows="15" aria-describedby="importExportContentHelp"></textarea>
+                <div id="importExportContentHelp" class="sr-only">Вставьте JSON данные для импорта или просмотрите данные для экспорта</div>
+            </div>
+            <button id="confirmImportExportBtn" class="btn btn-primary">Подтвердить</button>
+        </div>
+    </div>
+
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <p>&copy; 2025 Бесстрашные и безупречные. Все права защищены. Created by A.G.</p>
+        </div>
+    </footer>
+
+    <!-- Скрытые элементы для скринридеров -->
+    <div class="sr-only" aria-live="polite" aria-atomic="true">
+        <!-- Здесь будут объявления для скринридеров -->
+    </div>
+
+    <!-- Кнопка «Наверх» -->
+    <button id="backToTop" class="btn icon-btn" title="Наверх" aria-label="Вернуться вверх" style="display:none;" aria-hidden="true">
+        <i class="fas fa-arrow-up" aria-hidden="true"></i>
+    </button>
+
+        <script src="js/database.js"></script>
+        <script>
+                window.REMOTE_API_URL = 'https://fearless-and-impeccable.onrender.com';
+        </script>
+        <!-- Supabase CDN fallback (browser ESM). Use this if npm isn't available locally.
+                 It imports createClient from jsDelivr as an ESM module and will set window.supabase
+                 only when SUPABASE_URL and SUPABASE_ANON_KEY globals are provided. -->
+            <!-- Вставьте ваш SUPABASE_URL и SUPABASE_ANON_KEY (ANON/public key) перед модульным скриптом ниже -->
+            <script>
+                // Замените <YOUR-PROJECT-REF> на референс вашего проекта (например: vhesirusskfdnbrxlp)
+                // Пример URL: https://vhesirusskfdnbrxlp.supabase.co
+                window.SUPABASE_URL = window.SUPABASE_URL || 'https://vhesirusqkfdnbrxlphx.supabase.co';
+                // Публичный ANON key (вы предоставили этот ключ)
+                window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZoZXNpcnVzcWtmZG5icnhscGh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE5NDc2NTUsImV4cCI6MjA3NzUyMzY1NX0.ciJr4k_ZYI_mI8Ly0mDENG4LN5c6BAaxuMAMbYUIWHg';
+                // NOTE: ANON key — публичный для клиентского использования. Не храните service_role (админ) ключи в клиентском коде.
+            </script>
+            <script type="module">
+                import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+                if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.SUPABASE_URL.indexOf('<YOUR-PROJECT-REF>') === -1) {
+        try {
+          window.supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+          console.info('Supabase initialized via CDN');
+          
+          // Проверка подключения через health check
+          window.supabase
+            .from('templates')
+            .select('id', { count: 'exact', head: true })
+            .limit(1)
+            .then(({ error }) => {
+              if (error) {
+                if (error.code === '404' || error.code === 'PGRST116') {
+                  console.warn('Таблица templates не существует, создаём...');
+                  return window.supabase.rpc('init_templates_table');
+                }
+                console.error('Ошибка подключения к Supabase:', error);
+              } else {
+                console.info('Успешное подключение к Supabase');
+              }
+            })
+            .catch(err => {
+              if (err.message?.includes('Failed to fetch')) {
+                console.warn('Supabase недоступен, работаем локально');
+              } else {
+                console.error('Ошибка при проверке подключения:', err);
+              }
+            });
+
+        } catch (err) {
+          console.warn('Failed to initialize Supabase via CDN:', err);
+        }
+      } else {
+        console.warn('Supabase not initialized: set a real SUPABASE_URL and SUPABASE_ANON_KEY or install via npm');
+      }
+            </script>
+        <script src="js/snow.js"></script>
+    <script src="js/ui-enhancements.js"></script>
+    <script>
+        // Register service worker if supported
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/service-worker.js').then(function(reg) {
+                    console.log('ServiceWorker registration successful with scope: ', reg.scope);
+                }).catch(function(err) {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
+    <!-- Fuse.js for fuzzy search with matches -->
+    <script src="https://unpkg.com/fuse.js@6.6.2/dist/fuse.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

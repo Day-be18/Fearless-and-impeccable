@@ -1,0 +1,2155 @@
+/* Основные стили и CSS переменные */
+:root {
+    --primary-color: #4a6fa5;
+    --primary-hover: #3a5a8c;
+    --secondary-color: #e9ecef;
+    --secondary-hover: #dde2e6;
+    --text-primary: #333;
+    --text-secondary: #6c757d;
+    --text-light: #495057;
+    --bg-primary: #f8f9fa;
+    --bg-secondary: #ffffff;
+    --border-color: #ced4da;
+    --shadow-light: 0 2px 10px rgba(0, 0, 0, 0.1);
+    --shadow-medium: 0 5px 15px rgba(0, 0, 0, 0.15);
+    --shadow-heavy: 0 5px 20px rgba(0, 0, 0, 0.2);
+    --border-radius: 8px;
+    --transition: all 0.3s ease;
+    --container-max-width: 1200px;
+    --header-padding: 30px;
+    --main-padding: 40px;
+    --grid-columns-desktop: repeat(auto-fill, minmax(280px, 1fr));
+    --grid-columns-tablet: repeat(auto-fill, minmax(240px, 1fr));
+    --grid-columns-mobile: 1fr;
+    --grid-gap-desktop: 20px;
+    --grid-gap-tablet: 16px;
+    --grid-gap-mobile: 12px;
+    /* category chip colors (theme-aware) */
+    --category-border-color: rgba(0,0,0,0.08);
+    --category-bg: rgba(0,0,0,0.02);
+}
+
+/* Тёмная тема */
+[data-theme="dark"] {
+    /* Dark theme: choose darker brand/secondary surfaces and brighter text for contrast */
+    --primary-color: #27496c; /* darker header/brand so white text remains readable */
+    --primary-hover: #1f3a56;
+    --secondary-color: #23262a; /* darker panels / secondary buttons */
+    --secondary-hover: #2b2e33;
+    --text-primary: #e6eef8; /* bright, high-contrast body text */
+    --text-secondary: #bfc6cc; /* softer secondary text */
+    --text-light: #d0d6db; /* for small icons and helper text */
+    --bg-primary: #0f1112;
+    --bg-secondary: #131516;
+    --border-color: #232627;
+    --shadow-light: 0 2px 10px rgba(0, 0, 0, 0.6);
+    --shadow-medium: 0 5px 15px rgba(0, 0, 0, 0.8);
+    --shadow-heavy: 0 5px 20px rgba(0, 0, 0, 0.9);
+    /* category chip colors for dark theme */
+    --category-border-color: rgba(255,255,255,0.08);
+    --category-bg: rgba(255,255,255,0.02);
+}
+
+/* Скрытые элементы для скринридеров */
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* Альтернативный способ для старых браузеров */
+.sr-only:not(:focus):not(:active) {
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(50%) !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    white-space: nowrap !important;
+    width: 1px !important;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+    transition: var(--transition);
+    overflow-x: hidden;
+}
+
+.container {
+    max-width: var(--container-max-width);
+    margin: 0 auto;
+    padding: 0 clamp(12px, 3vw, 20px);
+    width: 100%;
+}
+
+/* Заголовок */
+.header {
+    background-color: var(--primary-color);
+    color: white;
+    padding: clamp(20px, 5vw, 30px) 0;
+    text-align: center;
+    box-shadow: var(--shadow-light);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Header controls (theme, snow) placed at top-right */
+.header-controls {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+    align-items: center;
+}
+    /* Ensure header-controls drop below title on very small screens */
+    .header-controls { margin-top: 6px; }
+
+.icon-btn {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.12);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.icon-btn i { font-size: 16px; }
+
+/* Hover and active styles for header icon buttons */
+.icon-btn:hover,
+.icon-btn:focus {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    background: rgba(255,255,255,0.16);
+}
+
+.icon-btn.active {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    color: white;
+    box-shadow: 0 8px 30px rgba(74,111,165,0.35);
+}
+
+/* Light glow for dark theme */
+[data-theme="dark"] .icon-btn:hover,
+[data-theme="dark"] .icon-btn:focus {
+    background: rgba(255,255,255,0.06);
+}
+
+/* Ripple effect for icon buttons */
+.icon-btn .ripple {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    animation: ripple 600ms ease-out;
+    background: rgba(255,255,255,0.6);
+    pointer-events: none;
+}
+
+@keyframes ripple {
+    to { transform: scale(4); opacity: 0; }
+}
+
+/* Snow canvas covers viewport and is pointer-events:none so it doesn't block UI */
+#snow-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 2;
+    display: none; /* shown when enabled */
+}
+
+.header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+    pointer-events: none;
+}
+
+.logo {
+    font-size: clamp(2rem, 5vw, 2.5rem);
+    margin-bottom: clamp(8px, 2vw, 16px);
+    font-weight: 700;
+    position: relative;
+    z-index: 1;
+    letter-spacing: -0.5px;
+}
+
+.tagline {
+    font-size: clamp(1rem, 2.5vw, 1.2rem);
+    opacity: 0.9;
+    position: relative;
+    z-index: 1;
+    margin: clamp(6px, 1.5vw, 8px) 0 0;
+}
+
+/* Основной контент */
+.main {
+    padding: clamp(20px, 5vw, var(--main-padding)) 0;
+}
+
+/* Секция управления */
+.controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: clamp(12px, 3vw, 20px);
+    margin-bottom: clamp(20px, 5vw, 30px);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.controls > * {
+    min-width: 0;
+}
+
+.btn {
+    padding: clamp(8px, 2vw, 12px) clamp(12px, 3vw, 20px);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(6px, 1.5vw, 8px);
+    transition: var(--transition);
+    white-space: nowrap;
+    min-height: 44px; /* Минимальная высота для touch устройств */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-medium);
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    color: var(--text-light);
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+    background-color: var(--secondary-hover);
+    transform: translateY(-1px);
+}
+
+.search-container {
+    position: relative;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: clamp(8px, 2vw, 12px);
+    align-items: center;
+}
+
+.favorites-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: background 0.2s ease, transform 0.12s ease;
+}
+
+.favorites-toggle.active {
+    background: rgba(74,111,165,0.08);
+    transform: translateY(-1px);
+}
+
+.favorites-toggle input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+}
+
+/* Ensure header controls collapse nicely on small screens */
+@media (max-width: 576px) {
+    .header-controls { top: 8px; right: 10px; gap: 6px; }
+    .icon-btn { width: 40px; height: 40px; }
+    .logo { font-size: 1.6rem; }
+    .tagline { font-size: 0.95rem; }
+}
+
+/* Back to top button */
+#backToTop {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 40;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 999px;
+    background: var(--primary-color);
+    color: white;
+    box-shadow: var(--shadow-medium);
+}
+
+/* Make grids adapt smoothly */
+.templates-grid {
+    display: grid;
+    grid-template-columns: var(--grid-columns-desktop);
+    gap: var(--grid-gap-desktop);
+}
+
+@media (max-width: 992px) {
+    .templates-grid { grid-template-columns: var(--grid-columns-tablet); gap: var(--grid-gap-tablet); }
+}
+
+@media (max-width: 576px) {
+    .templates-grid { grid-template-columns: var(--grid-columns-mobile); gap: var(--grid-gap-mobile); }
+    .controls { grid-template-columns: 1fr; }
+    .search-container { grid-template-columns: 1fr auto; }
+}
+
+/* When favorites-only checkbox is active, highlight favorite stars */
+.favorites-only-mode .template-card .favorite-btn i {
+    color: #ffcc33; /* gold */
+    text-shadow: 0 1px 0 rgba(0,0,0,0.2);
+}
+
+/* Ensure active favorite buttons are gold regardless */
+.favorite-btn.active i {
+    color: #ffcc33;
+}
+
+
+#searchInput {
+    grid-column: 1;
+    padding: clamp(10px, 2.5vw, 15px) clamp(15px, 3.5vw, 20px) clamp(10px, 2.5vw, 15px) clamp(44px, 8vw, 50px);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    transition: var(--transition);
+    background-repeat: no-repeat;
+    background-position: 12px center;
+    background-size: 18px 18px;
+}
+
+#searchInput:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.1);
+}
+
+#categoryFilter,
+#sortSelect {
+    padding: clamp(8px, 2vw, 12px);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition);
+    min-height: 44px;
+}
+
+#categoryFilter:focus,
+#sortSelect:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.1);
+}
+
+.favorites-toggle {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 1.5vw, 8px);
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    padding: clamp(8px, 2vw, 12px);
+    border-radius: 5px;
+    transition: var(--transition);
+}
+
+.favorites-toggle:hover {
+    background-color: rgba(74, 111, 165, 0.1);
+}
+
+.favorites-toggle input {
+    transform: scale(1.2);
+    accent-color: var(--primary-color);
+}
+
+/* Сетка шаблонов */
+.templates-grid {
+    display: grid;
+    grid-template-columns: var(--grid-columns-desktop);
+    gap: var(--grid-gap-desktop);
+    margin-top: clamp(20px, 5vw, 30px);
+}
+
+.template-card {
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-light);
+    padding: clamp(16px, 4vw, 24px);
+    transition: var(--transition);
+    border: 1px solid transparent;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.template-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary-color), #6c8bb8);
+    transform: scaleX(0);
+    transition: var(--transition);
+}
+
+.template-card:hover::before {
+    transform: scaleX(1);
+}
+
+.template-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-medium);
+    border-color: rgba(74, 111, 165, 0.2);
+}
+
+/* subtle 3D lift on hover using transform perspective */
+.template-card {
+    transform-origin: center;
+    will-change: transform, box-shadow;
+}
+
+.template-card:hover {
+    transform: perspective(600px) translateY(-8px) rotateX(2deg);
+}
+
+/* New template highlight */
+.template-card.new-template {
+    animation: newPulse 1.2s ease-in-out;
+}
+
+@keyframes newPulse {
+    0% { box-shadow: 0 2px 10px rgba(0,0,0,0.08); transform: translateY(0); }
+    30% { box-shadow: 0 10px 30px rgba(74,111,165,0.18); transform: translateY(-6px); }
+    100% { box-shadow: var(--shadow-light); transform: translateY(0); }
+}
+
+/* When we don't want hover effects (e.g., interacting with action buttons) */
+.template-card.no-action-hover,
+.template-card.no-action-hover::before {
+    transform: none !important;
+    box-shadow: var(--shadow-light) !important;
+    border-color: transparent !important;
+}
+
+/* Template header: title on left, compact actions on right */
+.template-header {
+    display: block; /* stack title/category under absolute actions */
+    position: relative; /* for absolute actions */
+    padding-top: 44px; /* make room for action buttons */
+    padding-right: 140px; /* reserve space for actions */
+    margin-bottom: 10px;
+}
+
+.template-actions {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 5;
+    flex-wrap: nowrap;
+}
+
+/* Compact round icon buttons */
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    flex: 0 0 auto;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+    font-size: 14px;
+    white-space: nowrap; /* prevent text wrapping inside button */
+    overflow: hidden;
+}
+
+.action-btn i { font-size: 14px; }
+
+.action-btn:hover {
+    transform: translateY(-2px);
+    background: rgba(0,0,0,0.04);
+    box-shadow: var(--shadow-light);
+}
+
+/* Dark theme tweaks for action buttons and panels to increase contrast */
+[data-theme="dark"] .action-btn:hover,
+[data-theme="dark"] .action-btn:focus {
+    background: rgba(255,255,255,0.04);
+    color: var(--text-primary);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+}
+
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .template-card,
+[data-theme="dark"] .import-tab {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.action-btn.favorite-btn,
+.template-card .action-btn.favorite-btn {
+    background: transparent !important;
+    border-color: transparent !important;
+}
+
+.action-btn.favorite-btn.active,
+.template-card .action-btn.favorite-btn.active {
+    /* Ensure no background/box-shadow is applied to the button itself */
+    background: transparent !important;
+    color: var(--text-light) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    position: relative;
+}
+
+.action-btn.favorite-btn.active i {
+    color: #ffcc33; /* gold star */
+    position: relative;
+    z-index: 3;
+}
+
+/* small circular highlight behind the star icon */
+.action-btn.favorite-btn.active::after {
+    content: '';
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #fff6e0, #ffd65a 40%, #ffcc33 100%);
+    box-shadow: 0 3px 10px rgba(255,204,51,0.25);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    pointer-events: none;
+}
+
+.action-btn.edit-btn { color: var(--primary-color); }
+.action-btn.delete-btn { color: #d9534f; }
+.action-btn.copy-btn { color: var(--text-light); }
+.action-btn.expand-btn { color: var(--text-light); }
+.action-btn.download-btn { color: var(--text-light); }
+
+/* Larger primary buttons (for mobile) */
+@media (max-width: 576px) {
+    .action-btn { width: 40px; height: 40px; border-radius: 10px; }
+}
+
+/* Footer spacing */
+.template-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-top: 12px;
+}
+
+.template-content {
+    padding-right: 12px; /* small buffer so text doesn't touch actions */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    position: relative;
+    z-index: 1;
+}
+
+.template-content.expanded {
+    max-height: none;
+}
+
+/* Ensure header title doesn't overlap actions on small-width cards */
+.template-title {
+    display: block;
+    margin: 0 0 6px 0;
+    font-size: 1.05rem;
+    line-height: 1.2;
+    max-width: calc(100% - 160px);
+}
+
+.template-category {
+    display: inline-block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    background: transparent;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+/* Favorites toggle in control bar - align input and label nicely */
+.favorites-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+}
+
+.favorites-toggle input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .template-header { padding-right: 110px; }
+    .template-title { max-width: calc(100% - 130px); }
+}
+
+@media (max-width: 480px) {
+    .template-header { padding-right: 90px; }
+    .template-title { max-width: calc(100% - 100px); }
+    .action-btn { width: 36px; height: 36px; min-width: 36px; }
+}
+
+.template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: clamp(12px, 3vw, 16px);
+    gap: clamp(8px, 2vw, 12px);
+}
+
+.template-title {
+    font-size: clamp(1.1rem, 3vw, 1.3rem);
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: clamp(4px, 1vw, 8px);
+    line-height: 1.3;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Reserve space to the right of the title so action buttons don't overlap it */
+.template-title { padding-right: 150px; }
+
+.template-category {
+    font-size: clamp(0.8rem, 2.5vw, 0.9rem);
+    color: var(--text-secondary);
+    background-color: var(--secondary-color);
+    padding: clamp(2px, 1vw, 4px) clamp(8px, 2vw, 10px);
+    border-radius: 20px;
+    display: inline-block;
+    white-space: nowrap;
+    flex-shrink: 0;
+    border: 1px solid var(--border-color); /* subtle grey outline to mark category */
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02) inset; /* slight inner depth */
+}
+
+.template-actions {
+    display: flex;
+    gap: clamp(6px, 1.5vw, 10px);
+    flex-wrap: wrap;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+    color: var(--text-secondary);
+    transition: var(--transition);
+    padding: clamp(4px, 1vw, 6px);
+    border-radius: 4px;
+    min-width: 32px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ensure action buttons sit above text and are clickable */
+.action-btn { position: relative; z-index: 6; }
+
+.action-btn:hover,
+.action-btn:focus {
+    background-color: rgba(74, 111, 165, 0.1);
+    color: var(--primary-color);
+}
+
+.edit-btn:hover {
+    color: var(--primary-color);
+}
+
+.delete-btn:hover {
+    color: #dc3545;
+}
+
+.template-content {
+    font-size: clamp(0.875rem, 2.5vw, 0.95rem);
+    color: var(--text-light);
+    line-height: 1.6;
+    max-height: 120px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: clamp(12px, 3vw, 16px);
+}
+
+.template-content.expanded {
+    max-height: none;
+}
+
+.template-content::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    background: linear-gradient(transparent, var(--bg-secondary));
+    pointer-events: none;
+    transition: var(--transition);
+}
+
+.template-content.expanded::after {
+    display: none;
+}
+
+.template-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: clamp(0.75rem, 2.5vw, 0.85rem);
+    color: var(--text-secondary);
+    flex-wrap: wrap;
+    gap: clamp(8px, 2vw, 12px);
+}
+
+/* Модальные окна */
+.modal {
+
+/* Improve template content display: clamp area, preserve line breaks, wrap long words and show fade */
+.template-content {
+    position: relative;
+    white-space: pre-wrap; /* preserve line breaks */
+    word-break: break-word;
+    overflow: hidden;
+    line-height: 1.45em;
+    max-height: calc(1.45em * 6); /* show ~6 lines by default */
+    transition: max-height 0.28s ease;
+    padding-bottom: 8px; /* space for fade */
+}
+
+.template-content::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2.8em;
+    background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 90%);
+    pointer-events: none;
+}
+
+.template-content.expanded {
+    max-height: none;
+}
+
+/* Dark theme fade variant */
+[data-theme="dark"] .template-content::after {
+    background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.85) 90%);
+}
+
+/* Title wrapping and ellipsis for long titles */
+.template-title {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: calc(100% - 120px);
+}
+
+/* Links inside content */
+.template-content a {
+    color: var(--primary-color);
+    text-decoration: underline;
+    word-break: break-word;
+}
+
+/* Strong wrapping rules to prevent overflow */
+.template-content,
+
+.template-header + .template-content {
+    margin-top: 6px; /* small gap between header and content */
+}
+.template-content * {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    -webkit-hyphens: auto;
+    -ms-hyphens: auto;
+    hyphens: auto;
+}
+
+/* Make sure anchors can break nicely */
+.template-content a { word-break: break-all; }
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    overflow: auto;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background-color: var(--bg-secondary);
+    margin: clamp(20px, 5vw, 50px) auto;
+    padding: clamp(20px, 5vw, 30px);
+    border-radius: var(--border-radius);
+    max-width: min(600px, 90vw);
+    width: 90%;
+    position: relative;
+    box-shadow: var(--shadow-heavy);
+    border: 1px solid var(--border-color);
+    overflow-y: auto;
+    max-height: 90vh;
+}
+
+.close-btn {
+    position: absolute;
+    top: clamp(12px, 3vw, 20px);
+    right: clamp(16px, 4vw, 24px);
+    font-size: clamp(1.5rem, 4vw, 1.8rem);
+    color: #c82333; /* red cross */
+    cursor: pointer;
+    transition: var(--transition);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: none;
+    border: none;
+}
+
+.close-btn:hover {
+    color: #fff;
+    background-color: #c82333; /* red background */
+    transform: scale(1.06);
+    box-shadow: 0 6px 18px rgba(200,40,51,0.25);
+}
+
+.close-btn:focus {
+    outline: 3px solid rgba(200,40,51,0.18);
+    outline-offset: 2px;
+}
+
+#modalTitle {
+    margin-bottom: clamp(16px, 4vw, 24px);
+    color: var(--primary-color);
+    font-size: clamp(1.3rem, 4vw, 1.5rem);
+}
+
+.form-group {
+    margin-bottom: clamp(16px, 4vw, 24px);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: clamp(6px, 1.5vw, 10px);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: clamp(10px, 2.5vw, 15px);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+    font-family: inherit;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    transition: var(--transition);
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: clamp(100px, 25vw, 120px);
+}
+
+/* Стили для вкладок импорта */
+.import-tabs {
+    display: flex;
+    margin-bottom: clamp(12px, 3vw, 20px);
+    border-bottom: 1px solid var(--border-color);
+    gap: clamp(4px, 1vw, 8px);
+}
+
+.import-tab {
+    background-color: var(--secondary-color);
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: clamp(8px, 2vw, 12px) clamp(12px, 3vw, 20px);
+    transition: var(--transition);
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+    border-radius: 5px 5px 0 0;
+    color: var(--text-primary);
+    flex: 1;
+    min-height: 44px;
+}
+
+.import-tab:hover {
+    background-color: var(--secondary-hover);
+}
+
+.import-tab.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.import-file-upload {
+    margin: clamp(12px, 3vw, 20px) 0;
+    display: flex;
+    align-items: center;
+    gap: clamp(8px, 2vw, 12px);
+    flex-wrap: wrap;
+}
+
+#fileName {
+    font-style: italic;
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+
+/* Подвал */
+.footer {
+    /* Use theme-aware variables so footer adapts to light/dark themes */
+    background-color: var(--secondary-color);
+    color: var(--text-primary);
+    padding: clamp(16px, 4vw, 24px) 0;
+    text-align: center;
+    margin-top: clamp(24px, 6vw, 40px);
+}
+
+/* Уведомления */
+.notification {
+    position: fixed;
+    top: clamp(16px, 4vw, 24px);
+    right: clamp(16px, 4vw, 24px);
+    left: clamp(16px, 4vw, 24px);
+    padding: clamp(12px, 3vw, 16px) clamp(16px, 4vw, 20px);
+    border-radius: 5px;
+    color: white;
+    font-weight: 500;
+    z-index: 1000;
+    box-shadow: var(--shadow-medium);
+    animation: slideIn 0.3s ease-out forwards;
+    max-width: 400px;
+    margin-left: auto;
+}
+
+.notification.success {
+    background-color: #4CAF50;
+}
+
+.notification.error {
+    background-color: #F44336;
+}
+
+.notification.hide {
+    animation: slideOut 0.3s ease-in forwards;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* Bulk toolbar */
+.bulk-toolbar {
+    position: sticky;
+    top: 0;
+    background: #fff7cc;
+    border-bottom: 1px solid #f1e5a8;
+    padding: clamp(8px, 2vw, 12px) 0;
+    z-index: 900;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+.bulk-toolbar .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: clamp(8px, 2vw, 12px);
+    flex-wrap: wrap;
+}
+
+.template-card.selected {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.card-select {
+    margin-right: clamp(6px, 1.5vw, 8px);
+}
+
+/* Hover цвета для action-кнопок */
+.action-btn.copy-btn:hover {
+    color: #17a2b8;
+}
+.action-btn.expand-btn:hover {
+    color: #6f42c1;
+}
+.action-btn.download-btn:hover {
+    color: #28a745;
+}
+.action-btn.delete-btn:hover {
+    color: #dc3545;
+}
+
+/* Hover цвета для bulk кнопок */
+/* bulk toolbar removed: styles omitted */
+
+/* Подсветка выбора при наведении в режиме мультивыбора */
+.template-card.selected:hover {
+    outline-color: var(--primary-hover);
+}
+
+/* Медиа-запросы для адаптивности */
+@media (max-width: 1200px) {
+    .container {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 992px) {
+    .controls {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    
+    .search-container {
+        grid-template-columns: 1fr auto;
+        grid-template-rows: auto auto;
+    }
+    
+    #searchInput {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+    
+    #categoryFilter,
+    #sortSelect {
+        grid-row: 2;
+    }
+}
+
+@media (max-width: 768px) {
+    .controls {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "add"
+            "import"
+            "theme"
+            "favorites"
+            "search"
+            "category"
+            "sort"
+            "multi";
+        gap: clamp(12px, 3vw, 16px);
+    }
+    
+    .search-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        gap: clamp(8px, 2vw, 12px);
+    }
+    
+    #searchInput,
+    #categoryFilter,
+    #sortSelect {
+        grid-column: 1;
+        grid-row: auto;
+    }
+    
+    .templates-grid {
+        grid-template-columns: var(--grid-columns-mobile);
+        gap: var(--grid-gap-mobile);
+    }
+    
+    .modal-content {
+        margin: clamp(16px, 4vw, 24px) auto;
+        padding: clamp(16px, 4vw, 24px);
+        width: 95%;
+    }
+    
+    .template-actions {
+        justify-content: center;
+    }
+    
+    .template-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: clamp(8px, 2vw, 12px);
+    }
+    
+    .template-category {
+        align-self: flex-start;
+    }
+}
+
+@media (max-width: 768px) {
+    .controls {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "add import"
+            "theme favorites"
+            "search search"
+            "category sort"
+            "multi multi";
+        gap: clamp(10px, 2.5vw, 16px);
+    }
+    
+    .templates-grid {
+        grid-template-columns: var(--grid-columns-tablet);
+        gap: var(--grid-gap-tablet);
+    }
+    
+    .modal-content {
+        margin: clamp(16px, 4vw, 24px) auto;
+        padding: clamp(16px, 4vw, 24px);
+        width: 95%;
+        max-width: 550px;
+    }
+    
+    .template-actions {
+        justify-content: flex-end;
+    }
+    
+    .template-header {
+        flex-wrap: wrap;
+        gap: clamp(8px, 2vw, 12px);
+    }
+    
+    .template-category {
+        align-self: flex-start;
+    }
+    
+    .btn span {
+        display: none;
+    }
+    
+    .btn i {
+        margin-right: 0;
+    }
+    
+    .btn {
+        padding: clamp(8px, 2vw, 12px);
+        min-width: 44px;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 576px) {
+    .header {
+        padding: clamp(16px, 4vw, 24px) 0;
+    }
+    
+    .logo {
+        font-size: clamp(1.5rem, 5vw, 2rem);
+    }
+    
+    .tagline {
+        font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+    }
+    
+    .main {
+        padding: clamp(16px, 4vw, 24px) 0;
+    }
+    
+    .templates-grid {
+        grid-template-columns: var(--grid-columns-mobile);
+        gap: var(--grid-gap-mobile);
+    }
+    
+    .template-card {
+        padding: clamp(12px, 3vw, 20px);
+    }
+    
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .controls > *:not(.search-container) {
+        width: 100%;
+    }
+    
+    .bulk-toolbar .container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: clamp(8px, 2vw, 12px);
+    }
+    
+    .bulk-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: clamp(6px, 1.5vw, 8px);
+    }
+    
+    .notification {
+        left: clamp(12px, 3vw, 16px);
+        right: clamp(12px, 3vw, 16px);
+        max-width: none;
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 0 clamp(12px, 3vw, 16px);
+    }
+    
+    .template-actions {
+        justify-content: space-between;
+        width: 100%;
+    }
+    
+    .action-btn {
+        flex: 1;
+        justify-content: center;
+        min-width: 40px;
+        min-height: 40px;
+    }
+    
+    .modal-content {
+        padding: clamp(12px, 3vw, 20px);
+        margin: clamp(12px, 3vw, 20px) auto;
+    }
+    
+    .import-tabs {
+        flex-direction: column;
+    }
+    
+    .import-tab {
+        border-radius: 5px;
+        margin-bottom: clamp(4px, 1vw, 6px);
+    }
+}
+
+@media (max-width: 360px) {
+    .logo {
+        font-size: clamp(1.3rem, 4vw, 1.6rem);
+    }
+    
+    .tagline {
+        font-size: clamp(0.8rem, 2.5vw, 1rem);
+    }
+    
+    .template-card {
+        padding: clamp(10px, 2.5vw, 16px);
+    }
+    
+    .btn {
+        font-size: clamp(0.8rem, 2.5vw, 0.9rem);
+        padding: clamp(6px, 1.5vw, 10px) clamp(8px, 2vw, 12px);
+    }
+}
+
+/* Портретная ориентация на мобильных */
+@media (max-width: 768px) and (orientation: portrait) {
+    .header {
+        padding: clamp(20px, 6vw, 30px) 0;
+    }
+    
+    .main {
+        padding: clamp(20px, 6vw, 30px) 0;
+    }
+}
+
+/* Ландшафтная ориентация на мобильных */
+@media (max-width: 768px) and (orientation: landscape) {
+    .header {
+        padding: clamp(16px, 4vw, 24px) 0;
+    }
+    
+    .main {
+        padding: clamp(16px, 4vw, 24px) 0;
+    }
+    
+    .controls {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+}
+
+/* Высокие экраны (планшеты в портретной ориентации) */
+@media (min-height: 800px) and (max-width: 1024px) {
+    .header {
+        padding: clamp(24px, 6vw, 36px) 0;
+    }
+    
+    .main {
+        padding: clamp(24px, 6vw, 36px) 0;
+    }
+}
+
+/* Очень широкие экраны */
+@media (min-width: 1400px) {
+    .container {
+        max-width: 1400px;
+    }
+    .header > .container { position: relative; }
+    
+    .templates-grid {
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    }
+}
+
+/* Поддержка тёмной темы */
+[data-theme="dark"] .bulk-toolbar {
+    background: #2b2b12;
+    border-bottom-color: #5b5b2a;
+}
+
+[data-theme="dark"] #sortSelect {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Дополнительные улучшения для тёмной темы */
+[data-theme="dark"] .favorites-toggle:hover {
+    background-color: rgba(155, 180, 228, 0.1);
+}
+
+[data-theme="dark"] .action-btn:hover,
+[data-theme="dark"] .action-btn:focus {
+    background-color: rgba(155, 180, 228, 0.1);
+}
+
+[data-theme="dark"] .btn-secondary:hover,
+[data-theme="dark"] .btn-secondary:focus {
+    background-color: #3a4048;
+}
+
+/* Улучшения для фокуса */
+.btn:focus,
+.action-btn:focus,
+.import-tab:focus,
+#searchInput:focus,
+#categoryFilter:focus,
+#sortSelect:focus,
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Улучшения для touch устройств */
+@media (hover: none) and (pointer: coarse) {
+    .btn,
+    .action-btn,
+    .import-tab {
+        min-height: 48px;
+    }
+    
+    .template-card:hover {
+        transform: none;
+    }
+    
+    .btn:hover,
+    .action-btn:hover {
+        transform: none;
+    }
+}
+
+/* Поддержка prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    html {
+        scroll-behavior: auto;
+    }
+}
+
+/* Поддержка высокого DPI */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .template-card {
+        border-width: 0.5px;
+    }
+}
+
+/* Поддержка тёмной темы системы */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+        --primary-color: #9bb4e4;
+        --primary-hover: #7a9bd1;
+        --text-primary: #e5e5e5;
+        --text-secondary: #c3c6ca;
+        --text-light: #d0d3d7;
+        --bg-primary: #121212;
+        --bg-secondary: #1e1e1e;
+        --border-color: #3a3a3a;
+        --shadow-light: 0 2px 10px rgba(0, 0, 0, 0.6);
+        --shadow-medium: 0 5px 15px rgba(0, 0, 0, 0.8);
+        --shadow-heavy: 0 5px 20px rgba(0, 0, 0, 0.9);
+    }
+}
+
+/* Улучшения для печати */
+@media print {
+    .header,
+    .controls,
+    .bulk-toolbar,
+    .modal,
+    .footer {
+        display: none !important;
+    }
+    
+    .template-card {
+        break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+    
+    body {
+        background: white !important;
+        color: black !important;
+    }
+}
+
+/* Исправления для старых браузеров */
+@supports not (clamp(1px, 1vw, 10px)) {
+    .container {
+        padding: 0 20px;
+    }
+    
+    .header {
+        padding: 30px 0;
+    }
+    
+    .main {
+        padding: 40px 0;
+    }
+    
+    .logo {
+        font-size: 2.5rem;
+    }
+    
+    .tagline {
+        font-size: 1.2rem;
+    }
+    
+    .btn {
+        padding: 10px 20px;
+        font-size: 1rem;
+        min-height: 44px;
+    }
+    
+    .controls {
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .templates-grid {
+        gap: 20px;
+        margin-top: 30px;
+    }
+    
+    .template-card {
+        padding: 20px;
+    }
+    
+    .template-title {
+        font-size: 1.3rem;
+        margin-bottom: 8px;
+    }
+    
+    .template-category {
+        font-size: 0.9rem;
+        padding: 3px 8px;
+    }
+    
+    .action-btn {
+        font-size: 1rem;
+        padding: 6px;
+        min-width: 32px;
+        min-height: 32px;
+    }
+    
+    .template-content {
+        font-size: 0.95rem;
+        margin-bottom: 16px;
+    }
+    
+    .template-footer {
+        font-size: 0.85rem;
+        gap: 12px;
+    }
+    
+    .modal-content {
+        margin: 50px auto;
+        padding: 30px;
+    }
+    
+    .close-btn {
+        top: 20px;
+        right: 24px;
+        font-size: 1.8rem;
+        width: 32px;
+        height: 32px;
+    }
+    
+    #modalTitle {
+        margin-bottom: 24px;
+        font-size: 1.5rem;
+    }
+    
+    .form-group {
+        margin-bottom: 24px;
+    }
+    
+    .form-group label {
+        margin-bottom: 10px;
+    }
+    
+    .form-group input,
+    .form-group textarea {
+        padding: 15px;
+        font-size: 1rem;
+    }
+    
+    .form-group textarea {
+        min-height: 120px;
+    }
+    
+    .import-tabs {
+        margin-bottom: 20px;
+        gap: 8px;
+    }
+    
+    .import-tab {
+        padding: 12px 20px;
+        font-size: 1rem;
+        min-height: 44px;
+    }
+    
+    .import-file-upload {
+        margin: 20px 0;
+        gap: 12px;
+    }
+    
+    .footer {
+        padding: 24px 0;
+        margin-top: 40px;
+    }
+    
+    .notification {
+        top: 24px;
+        right: 24px;
+        left: 24px;
+        padding: 16px 20px;
+    }
+    
+    .bulk-toolbar {
+        padding: 12px 0;
+    }
+    
+    .bulk-toolbar .container {
+        gap: 12px;
+    }
+    
+    .card-select {
+        margin-right: 8px;
+    }
+}
+
+/* ==========================================================
+   Responsive: improved breakpoints and container/card behavior
+   Ensures templates grid and controls adapt across devices
+   ========================================================== */
+
+/* Base responsive grid for templates: fluid, auto-fit columns */
+.templates-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: clamp(12px, 3vw, 20px);
+}
+
+/* Template card sizing and content flow */
+.template-card {
+    padding: clamp(12px, 3vw, 20px);
+}
+
+.template-header {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.template-title { max-width: 100%; }
+
+/* On small screens stack header and move actions into a compact row */
+@media (max-width: 900px) {
+    .controls { grid-template-columns: 1fr; }
+    .search-container { grid-template-columns: 1fr auto; }
+    .header-controls { top: 10px; right: 10px; }
+    .templates-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+    .template-header { flex-direction: column; align-items: stretch; padding-right: 0; }
+    .template-actions { position: static; margin-top: 8px; justify-content: flex-end; }
+    .template-title { max-width: 100%; }
+}
+
+/* Mobile: single column, larger tap targets, condensed paddings */
+@media (max-width: 576px) {
+    html, body { font-size: 16px; }
+    .container { padding: 0 12px; }
+    .header { padding: 18px 0; }
+    .logo { font-size: 1.6rem; }
+    .tagline { font-size: 0.95rem; }
+    .controls { gap: 12px; }
+    .templates-grid { grid-template-columns: 1fr; gap: 12px; }
+    .template-card { padding: 12px; }
+    .template-content { max-height: calc(1.45em * 8); }
+    .action-btn { width: 44px; height: 44px; border-radius: 10px; }
+    .action-btn i { font-size: 16px; }
+    .modal-content { width: 94vw; margin: 12px auto; padding: 16px; border-radius: 12px; }
+    #backToTop { right: 14px; bottom: 14px; }
+}
+
+/* Large desktop: increase columns and spacing */
+@media (min-width: 1400px) {
+    :root { --container-max-width: 1400px; }
+    .templates-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .container { padding: 0 28px; }
+}
+
+/* Prevent hover transforms on touch devices (better UX) */
+@media (hover: none) {
+    .template-card:hover { transform: none; box-shadow: var(--shadow-light); }
+    .icon-btn:hover, .action-btn:hover { transform: none; }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* Improve focus visibility for keyboard users */
+:focus-visible {
+    outline: 3px solid rgba(74,111,165,0.14);
+    outline-offset: 2px;
+}
+
+/* Make sure modal takes full height on very small devices */
+@media (max-height: 480px) {
+    .modal-content { max-height: 92vh; overflow-y: auto; }
+}
+
+/* Tweak template-content fade overlay for dark/light themes responsively */
+.template-content::after {
+    height: 3.2em;
+}
+
+@media (max-width: 576px) {
+    .template-content::after { height: 2.6em; }
+}
+
+/* Ensure controls (filters/search) wrap neatly on narrow screens */
+.search-container { gap: 8px; }
+@media (max-width: 480px) {
+    .search-container { grid-template-columns: 1fr; }
+    #categoryFilter, #sortSelect { width: 100%; }
+}
+
+/* Optional: make header-controls collapse into a small menu on very small widths */
+@media (max-width: 420px) {
+    .header-controls { gap: 6px; right: 8px; top: 8px; }
+    .icon-btn { width: 40px; height: 40px; }
+}
+
+/* High-priority override: ensure actions are a horizontal top bar */
+.template-card { display: flex !important; flex-direction: column !important; }
+.template-actions {
+    order: -1 !important; /* visually move to top */
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 8px 12px !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    flex-wrap: nowrap !important;
+}
+.template-actions .action-btn {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    min-width: 36px !important;
+    height: 36px !important;
+}
+
+/* Remove legacy header paddings that reserved side space for absolute actions */
+.template-header {
+    padding-top: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* Ensure title doesn't reserve extra right padding */
+.template-title { padding-right: 0 !important; }
+
+
+/* Small improvement: ensure images inside templates are responsive */
+.template-card img, .template-card video {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 6px;
+}
+
+/* End of responsive enhancements */
+
+/* ----------------------------
+   Final overrides (high specificity)
+   Fix remaining layout conflicts and ensure consistent stacking
+   ---------------------------- */
+
+/* Remove any remaining pseudo-element search icons */
+.search-container::before { display: none !important; }
+
+/* Force stacking of search and filters on small/medium screens */
+@media (max-width: 900px) {
+    .search-container {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+        align-items: stretch;
+    }
+    .search-container > #searchInput { grid-column: 1 / -1; width: 100%; }
+    .search-container > select, .search-container > button, .search-container .favorites-toggle {
+        grid-column: 1 / -1;
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+/* Extra safety: also apply on <=768 and <=576 to cover all small viewports */
+@media (max-width: 768px) {
+    .search-container { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 576px) {
+    .search-container { grid-template-columns: 1fr !important; }
+}
+
+/* Ensure template header uses flexbox and action buttons do not overlap title/content */
+.template-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+.template-title {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    padding-right: 0 !important;
+}
+.template-actions {
+    position: static !important;
+    margin-left: 8px !important;
+    display: flex !important;
+    gap: 8px !important;
+    align-items: center !important;
+}
+.action-btn { position: relative !important; z-index: 10 !important; }
+
+@media (max-width: 576px) {
+    .template-header { flex-direction: column !important; align-items: stretch !important; }
+    .template-actions { order: 2 !important; margin-top: 8px !important; justify-content: flex-end !important; }
+}
+
+/* ==================================================
+   Move functional action buttons to the very top of
+   the template card so they remain fixed visually
+   and all text flows underneath on any screen size.
+   This uses flex ordering so no HTML changes are needed.
+   ================================================== */
+
+/* Ensure card is a column flex container (should already be), reinforce here */
+.template-card {
+    display: flex !important;
+    flex-direction: column !important;
+    position: relative !important;
+}
+
+/* Put actions to the top of the card */
+.template-actions {
+    order: -1 !important; /* move before header/title */
+    width: 100% !important; /* span the full card width */
+    display: flex !important;
+    justify-content: flex-end !important; /* keep buttons on the right */
+    gap: 8px !important;
+    padding: 8px 12px !important; /* visual spacing */
+    box-sizing: border-box !important;
+    background: transparent !important;
+}
+
+/* Make sure action buttons are compact on the top bar */
+.template-actions .action-btn { min-width: 36px !important; height: 36px !important; padding: 6px !important; }
+
+/* Ensure header/title/content sits below the actions */
+.template-header,
+.template-title,
+.template-category,
+.template-content,
+.template-footer {
+    order: 0 !important;
+}
+
+/* For very small widths keep actions visible and compact */
+@media (max-width: 480px) {
+    .template-actions { padding: 6px 8px !important; gap: 6px !important; }
+    .template-actions .action-btn { min-width: 34px !important; height: 34px !important; }
+}
+
+
+
+/* ==================================================
+   Fix header-controls overlap and search/filter stacking
+   ================================================== */
+
+/* For medium screens move header controls into flow so they don't overlap the logo */
+@media (max-width: 900px) {
+    .header {
+        padding-top: clamp(22px, 6vw, 48px);
+    }
+    .header > .container {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .logo, .tagline { text-align: left; }
+    .header-controls {
+        position: relative !important;
+        top: auto !important;
+        right: auto !important;
+        align-self: flex-end;
+        margin: 0;
+        display: flex;
+        gap: 8px;
+        z-index: 2;
+    }
+    /* Slightly smaller icon buttons so they don't crowd text */
+    .header-controls .icon-btn { width: 40px; height: 40px; }
+}
+
+/* On small screens stack search + filters full width and adjust search icon */
+@media (max-width: 768px) {
+    .search-container {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    #searchInput { grid-column: 1; }
+    #categoryFilter, #sortSelect, .favorites-toggle {
+        grid-column: 1;
+        width: 100%;
+        min-width: 0;
+    }
+    /* adjust the search icon position so it doesn't overlap selects */
+    .search-container::before { left: 12px; }
+    #searchInput { padding-left: clamp(36px, 8vw, 44px); }
+}
+
+/* Extra small screens: ensure header controls align and selectors are full width */
+@media (max-width: 480px) {
+    .header > .container { padding-left: 8px; padding-right: 8px; }
+    .header-controls { align-self: flex-end; }
+    .logo { font-size: 1.5rem; }
+    .tagline { font-size: 0.9rem; }
+    .search-container { grid-template-columns: 1fr; }
+    #categoryFilter, #sortSelect { appearance: none; -webkit-appearance: none; }
+    /* Make sure select dropdown arrows do not overlap the left edge */
+    #categoryFilter, #sortSelect { padding-left: 12px; }
+}
+
+/* Additional breakpoint to prevent overlap on medium-large screens */
+@media (max-width: 1100px) {
+    .header > .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+    .header-controls {
+        position: static !important;
+        margin-top: 6px;
+        align-self: center;
+    }
+    /* make room for controls without overlapping the logo */
+    .logo { padding-right: 12px; }
+}
+
+/* Fix: ensure search icon is inside the search input and does not overlap selects */
+.search-container {
+    position: relative;
+    align-items: center;
+}
+/* Use background icon inside input instead of container pseudo-element to avoid stacking issues */
+.search-container::before { display: none !important; }
+#searchInput {
+    padding-left: clamp(36px, 8vw, 44px);
+    min-width: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%236c757d' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.098zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 12px center;
+    background-size: 18px 18px;
+    z-index: 3;
+}
+
+/* allow selects to shrink properly in grid */
+#categoryFilter, #sortSelect, .category-select {
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* On narrow screens ensure selects expand to full width under the search input */
+@media (max-width: 768px) {
+    #categoryFilter, #sortSelect {
+        width: 100%;
+        display: block;
+    }
+}
+
+/* Fix: ensure action buttons in template cards don't overlap the title/content */
+.template-card { position: relative; }
+/* Use flex layout to reliably keep actions to the right without overlapping content */
+.template-header {
+    display: flex !important;
+    align-items: flex-start;
+    gap: 12px;
+}
+.template-title { flex: 1 1 auto; min-width: 0; padding-right: 0 !important; }
+.template-actions {
+    position: static !important;
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    z-index: 5;
+}
+
+@media (max-width: 576px) {
+    /* on small screens stack header and actions vertically */
+    .template-header { flex-direction: column; align-items: stretch; }
+    .template-actions { order: 2; margin-top: 8px; justify-content: flex-end; }
+}
+
+/* Theme-aware styling for category chip
+   Uses CSS variables so border/background change with theme. */
+.template-category {
+    border: 1px solid var(--category-border-color) !important;
+    background-color: var(--category-bg) !important;
+    color: var(--text-secondary) !important;
+    box-shadow: none !important;
+}
+
+/* category chip interaction */
+.template-category {
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease;
+}
+.template-category:hover,
+.template-category:focus {
+    background-color: rgba(74,111,165,0.06);
+    border-color: rgba(74,111,165,0.12);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+/* =====================
+   Strong layout fixes for template cards
+   Ensure actions are the top bar and header (title + category)
+   always sit underneath actions and above the description.
+   Targets cards inside the templates grid with high specificity
+   to override older/inline rules that reserve right padding.
+   ===================== */
+.templates-grid .template-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+}
+
+.templates-grid .template-card > .template-actions {
+    position: static !important; /* remove absolute positioning */
+    order: -1 !important; /* move to the very top visually */
+    align-self: stretch !important; /* span full width */
+    width: 100% !important;
+    display: flex !important;
+    justify-content: flex-end !important; /* keep buttons to the right */
+    gap: 8px !important;
+    padding: 8px 12px !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    flex-wrap: nowrap !important;
+    z-index: 8 !important;
+}
+
+.templates-grid .template-card > .template-header {
+    display: flex !important;
+    flex-direction: column !important; /* title above category */
+    align-items: flex-start !important;
+    gap: 6px !important;
+    padding-top: 6px !important;
+    padding-right: 0 !important; /* don't reserve space on the right */
+    width: 100% !important;
+    box-sizing: border-box !important;
+    order: 0 !important; /* ensure header is below actions */
+}
+
+.templates-grid .template-card .template-title {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-right: 0 !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    white-space: normal !important;
+}
+
+.templates-grid .template-card .template-category {
+    display: inline-block !important;
+    margin-top: 2px !important;
+    color: var(--text-secondary) !important;
+    background-color: transparent !important;
+}
+
+.templates-grid .template-card .template-content {
+    order: 2 !important;
+    margin-top: 8px !important;
+}
+
+/* Make sure action buttons remain compact and don't wrap into vertical stack */
+.templates-grid .template-card .template-actions .action-btn {
+    min-width: 36px !important;
+    height: 36px !important;
+    flex: 0 0 auto !important;
+}
+
+/* If cards are very narrow (e.g. 4 per row on small-ish viewports) reduce paddings
+   so title/category and actions look harmonious */
+@media (max-width: 1100px) {
+    .templates-grid .template-card > .template-actions { padding: 6px 8px !important; gap: 6px !important; }
+    .templates-grid .template-card .template-title { font-size: 1rem !important; }
+}
+
+/* Search match highlight */
+.search-hit {
+    background-color: #fff59d; /* soft yellow */
+    padding: 0 2px;
+    border-radius: 2px;
+    color: inherit;
+}
+
+/* Dark theme variant */
+[data-theme="dark"] .search-hit {
+    background-color: #8b7000; /* darker yellow/gold */
+    color: #fff;
+}
+
+/* preview snippet styling */
+.template-content mark.search-hit { background-color: rgba(255,235,59,0.95); color: #111; }
+[data-theme="dark"] .template-content mark.search-hit { background-color: rgba(255,193,7,0.9); color: #111; }
+
+

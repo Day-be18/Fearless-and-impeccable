@@ -1,0 +1,16 @@
+{
+  "name": "fearless-and-impeccable-main",
+  "version": "1.0.0",
+  "description": "Полностью адаптивный веб-сайт для управления шаблонами сообщений на любой случай.",
+  "main": "service-worker.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.78.0"
+  }
+}
