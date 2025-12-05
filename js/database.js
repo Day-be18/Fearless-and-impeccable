@@ -162,38 +162,51 @@
         // Инициализация Supabase
         initSupabase: function() {
             var self = this;
-            var checkInterval = setInterval(function() {
+            var checkInterval = null;
+            var checkCount = 0;
+            var maxChecks = 100; // 10 секунд при интервале 100ms
+            
+            checkInterval = setInterval(function() {
+                checkCount++;
                 if (window.supabase && !self.supabase) {
                     console.log('Обнаружен клиент Supabase');
                     self.supabase = window.supabase;
-                    clearInterval(checkInterval);
+                    if (checkInterval) {
+                        clearInterval(checkInterval);
+                        checkInterval = null;
+                    }
                     self.onSupabaseInit();
+                    return;
+                }
+                
+                if (checkCount >= maxChecks) {
+                    if (checkInterval) {
+                        clearInterval(checkInterval);
+                        checkInterval = null;
+                    }
+                    console.warn('Supabase не был инициализирован за 10 секунд');
+                    return;
                 }
             }, 100);
-
-            setTimeout(function() {
-                if (checkInterval) {
-                    clearInterval(checkInterval);
-                    if (!self.supabase) {
-                        console.warn('Supabase не был инициализирован за 10 секунд');
-                    }
-                }
-            }, 10000);
         },
 
         // Обработка инициализации Supabase
         onSupabaseInit: function() {
             var self = this;
-            this.checkSupabaseConnection()
-                .then(function(isConnected) {
-                    if (isConnected) {
-                        console.log('Подключение к Supabase установлено');
-                        return self.startAutoSync();
-                    }
-                })
-                .catch(function(err) {
-                    console.error('Ошибка при инициализации Supabase:', err);
-                });
+            try {
+                this.checkSupabaseConnection()
+                    .then(function(isConnected) {
+                        if (isConnected) {
+                            console.log('Подключение к Supabase установлено');
+                            return self.startAutoSync();
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('Ошибка при инициализации Supabase:', err);
+                    });
+            } catch (err) {
+                console.error('Критическая ошибка при инициализации Supabase:', err);
+            }
         },
 
         // Инициализация IndexedDB
@@ -239,23 +252,35 @@
                 return Promise.resolve(false);
             }
 
-            return this.supabase
-                .from('templates')
-                .select('id')
-                .limit(1)
-                .then(function(response) {
-                    if (response.error) {
-                        if (response.error.code === '404' || response.error.code === 'PGRST116') {
-                            return self.createSupabaseTable();
-                        }
-                        throw response.error;
-                    }
-                    return true;
-                })
-                .catch(function(err) {
-                    console.error('Ошибка проверки Supabase:', err);
-                    return false;
-                });
+            return new Promise(function(resolve) {
+                try {
+                    self.supabase
+                        .from('templates')
+                        .select('id')
+                        .limit(1)
+                        .then(function(response) {
+                            if (response && response.error) {
+                                if (response.error.code === '404' || response.error.code === 'PGRST116') {
+                                    self.createSupabaseTable()
+                                        .then(() => resolve(true))
+                                        .catch(() => resolve(false));
+                                    return;
+                                }
+                                console.error('Ошибка проверки Supabase:', response.error);
+                                resolve(false);
+                            } else {
+                                resolve(true);
+                            }
+                        })
+                        .catch(function(err) {
+                            console.error('Ошибка проверки Supabase:', err);
+                            resolve(false);
+                        });
+                } catch (err) {
+                    console.error('Критическая ошибка при проверке Supabase:', err);
+                    resolve(false);
+                }
+            });
         },
 
         // Создание таблицы в Supabase
@@ -276,20 +301,25 @@
             var self = this;
             console.log('Соединение восстановлено');
             
-            this.checkSupabaseConnection()
-                .then(function(isConnected) {
-                    if (!isConnected) {
-                        updateSyncIndicator('error', 'Нет доступа к облаку');
-                        return;
-                    }
-                    
-                    updateSyncIndicator('syncing');
-                    return self.syncWithSupabase();
-                })
-                .catch(function(err) {
-                    console.error('Ошибка синхронизации после восстановления:', err);
-                    updateSyncIndicator('error', err.message);
-                });
+            try {
+                this.checkSupabaseConnection()
+                    .then(function(isConnected) {
+                        if (!isConnected) {
+                            updateSyncIndicator('error', 'Нет доступа к облаку');
+                            return;
+                        }
+                        
+                        updateSyncIndicator('syncing');
+                        return self.syncWithSupabase();
+                    })
+                    .catch(function(err) {
+                        console.error('Ошибка синхронизации после восстановления:', err);
+                        updateSyncIndicator('error', err.message || 'Ошибка синхронизации');
+                    });
+            } catch (err) {
+                console.error('Критическая ошибка при восстановлении соединения:', err);
+                updateSyncIndicator('error', 'Ошибка синхронизации');
+            }
         },
 
         // Обработчик потери соединения
@@ -475,7 +505,10 @@
                                 .from('templates')
                                 .upsert([cloudPayload])
                                 .then(function(response) {
-                                    if (response.error) throw response.error;
+                                    if (response && response.error) {
+                                        console.error('Ошибка Supabase при добавлении:', response.error);
+                                        throw response.error;
+                                    }
 
                                     // После успешного сохранения в Supabase, сохраняем локально (with favorite)
                                     return (self.useIndexedDB ? 
@@ -490,7 +523,14 @@
                                 .catch(function(err) {
                                     console.error('Ошибка при сохранении в Supabase:', err);
                                     updateSyncIndicator('error', 'Ошибка сохранения в облаке');
-                                    throw new Error('Не удалось сохранить шаблон в облаке');
+                                    // Пытаемся сохранить локально в любом случае
+                                    return (self.useIndexedDB ? 
+                                        self.addToIndexedDB(newTemplate) : 
+                                        Promise.resolve(self.addToLocalStorage(newTemplate)))
+                                        .then(function() {
+                                            notifySubscribers('add', newTemplate);
+                                            return newTemplate;
+                                        });
                                 });
                         } else {
                             // If no cloud, still save locally
