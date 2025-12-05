@@ -967,6 +967,176 @@
                 return this.init();
             }
             return Promise.resolve();
+        },
+
+        // Экспорт шаблонов в JSON
+        exportTemplates: function() {
+            var self = this;
+            return this.ensureInitialized()
+                .then(function() {
+                    return self.getAllTemplates()
+                        .then(function(templates) {
+                            return JSON.stringify(templates, null, 2);
+                        });
+                });
+        },
+
+        // Импорт шаблонов из JSON
+        importTemplates: function(jsonContent) {
+            var self = this;
+            
+            if (!jsonContent || typeof jsonContent !== 'string') {
+                return Promise.reject(new Error('Некорректный формат JSON'));
+            }
+
+            return this.ensureInitialized()
+                .then(function() {
+                    try {
+                        var templates = JSON.parse(jsonContent);
+                        
+                        if (!Array.isArray(templates)) {
+                            return Promise.reject(new Error('JSON должен содержать массив шаблонов'));
+                        }
+
+                        if (templates.length === 0) {
+                            return Promise.resolve(0);
+                        }
+
+                        // Добавляем каждый шаблон
+                        var promises = templates.map(function(template) {
+                            // Проверяем обязательные поля
+                            if (!template.name || !template.content) {
+                                console.warn('Пропущен шаблон без названия или содержимого:', template);
+                                return Promise.resolve(null);
+                            }
+                            
+                            // Генерируем новый ID, если его нет, или сохраняем существующий
+                            if (!template.id) {
+                                template.id = generateId();
+                            }
+                            
+                            // Устанавливаем даты, если их нет
+                            if (!template.dateCreated) {
+                                template.dateCreated = new Date().toISOString();
+                            }
+                            template.dateModified = new Date().toISOString();
+                            
+                            return self.addTemplate(template);
+                        });
+
+                        return Promise.all(promises)
+                            .then(function(results) {
+                                var count = results.filter(function(r) { return r !== null; }).length;
+                                return count;
+                            });
+                    } catch (error) {
+                        return Promise.reject(new Error('Ошибка парсинга JSON: ' + error.message));
+                    }
+                });
+        },
+
+        // Импорт шаблонов из TXT
+        importTemplatesFromTxt: function(txtContent, defaultCategory) {
+            var self = this;
+            
+            if (!txtContent || typeof txtContent !== 'string') {
+                return Promise.reject(new Error('Некорректный формат TXT'));
+            }
+
+            return this.ensureInitialized()
+                .then(function() {
+                    try {
+                        // Парсим TXT формат: название на первой строке, пустая строка, затем содержимое
+                        var blocks = txtContent.split(/\r?\n\r?\n/);
+                        var templates = [];
+                        var currentTitle = '';
+                        var currentContent = [];
+
+                        // Обрабатываем каждый блок
+                        blocks.forEach(function(block, index) {
+                            var lines = block.split(/\r?\n/);
+                            
+                            if (lines.length === 0) return;
+                            
+                            // Первая строка - название, остальное - содержимое
+                            if (lines.length === 1 && index === 0) {
+                                // Может быть только название без содержимого
+                                currentTitle = lines[0].trim();
+                            } else {
+                                if (currentTitle === '' && lines.length > 0) {
+                                    currentTitle = lines[0].trim();
+                                    currentContent = lines.slice(1);
+                                } else {
+                                    // Продолжаем накапливать содержимое
+                                    currentContent = currentContent.concat(lines);
+                                }
+                            }
+                            
+                            // Если встретили пустую строку или следующий блок начинается с нового названия
+                            if (currentTitle && currentContent.length > 0) {
+                                var content = currentContent.join('\n').trim();
+                                if (content) {
+                                    templates.push({
+                                        name: currentTitle,
+                                        category: defaultCategory || 'Импортировано из TXT',
+                                        content: content
+                                    });
+                                }
+                                currentTitle = '';
+                                currentContent = [];
+                            }
+                        });
+
+                        // Обрабатываем последний блок
+                        if (currentTitle) {
+                            var lastContent = currentContent.join('\n').trim();
+                            if (!lastContent && blocks.length > 0) {
+                                // Возможно, весь блок - это название, а содержимое в следующем блоке
+                                // Пропускаем, если нет содержимого
+                            } else if (lastContent) {
+                                templates.push({
+                                    name: currentTitle,
+                                    category: defaultCategory || 'Импортировано из TXT',
+                                    content: lastContent
+                                });
+                            }
+                        }
+
+                        // Альтернативный парсинг: если формат простой (название - первая строка, содержимое - остальное)
+                        if (templates.length === 0 && txtContent.trim()) {
+                            var allLines = txtContent.split(/\r?\n/).filter(function(line) { return line.trim(); });
+                            if (allLines.length >= 2) {
+                                templates.push({
+                                    name: allLines[0],
+                                    category: defaultCategory || 'Импортировано из TXT',
+                                    content: allLines.slice(1).join('\n')
+                                });
+                            } else if (allLines.length === 1) {
+                                templates.push({
+                                    name: allLines[0],
+                                    category: defaultCategory || 'Импортировано из TXT',
+                                    content: ''
+                                });
+                            }
+                        }
+
+                        if (templates.length === 0) {
+                            return Promise.reject(new Error('Не удалось распарсить шаблоны из TXT файла'));
+                        }
+
+                        // Добавляем каждый шаблон
+                        var promises = templates.map(function(template) {
+                            return self.addTemplate(template);
+                        });
+
+                        return Promise.all(promises)
+                            .then(function() {
+                                return templates.length;
+                            });
+                    } catch (error) {
+                        return Promise.reject(new Error('Ошибка парсинга TXT: ' + error.message));
+                    }
+                });
         }
     };
 

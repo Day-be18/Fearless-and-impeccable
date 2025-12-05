@@ -207,8 +207,13 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // Инициализация приложения после загрузки DOM
-    const app = new TemplateApp();
-    app.init();
+    try {
+        const app = new TemplateApp();
+        window.app = app; // Сохраняем экземпляр в глобальный объект
+        app.init();
+    } catch (error) {
+        console.error('Ошибка при инициализации приложения:', error);
+    }
 });
 
 class TemplateApp {
@@ -274,22 +279,25 @@ class TemplateApp {
      * Инициализация приложения
      */
     init() {
-        // Подписываемся на изменения в базе данных
-        if (window.TemplateDB && TemplateDB.subscribe) {
-            TemplateDB.subscribe((action, data) => {
-                switch (action) {
-                    case 'add':
-                        this.handleTemplateAdded(data);
-                        break;
-                    case 'update':
-                        this.handleTemplateUpdated(data);
-                        break;
-                    case 'delete':
-                        this.handleTemplateDeleted(data);
-                        break;
-                }
-            });
-        }
+        // Подписываемся на изменения в базе данных с небольшой задержкой
+        // чтобы убедиться, что TemplateDB инициализирован
+        setTimeout(() => {
+            if (window.TemplateDB && typeof window.TemplateDB.subscribe === 'function') {
+                window.TemplateDB.subscribe((action, data) => {
+                    switch (action) {
+                        case 'add':
+                            this.handleTemplateAdded(data);
+                            break;
+                        case 'update':
+                            this.handleTemplateUpdated(data);
+                            break;
+                        case 'delete':
+                            this.handleTemplateDeleted(data);
+                            break;
+                    }
+                });
+            }
+        }, 50);
 
         // Тема и состояние фильтров из localStorage
         const savedTheme = localStorage.getItem('theme');
@@ -316,6 +324,8 @@ class TemplateApp {
         if (this.sortSelect) this.sortSelect.value = savedSort;
 
         // Дожидаемся инициализации базы данных перед загрузкой шаблонов
+        if (!this.templatesGrid) return;
+        
         setTimeout(() => {
             // Загрузка шаблонов с учетом текущих фильтров
             this.loadTemplates();
@@ -464,7 +474,7 @@ class TemplateApp {
                         this.showNotification('Ошибка при подготовке JSON', 'error');
                     }
                 } else if (isTxtTab) {
-                    templateDB.getAllTemplates().then(templates => {
+                    TemplateDB.getAllTemplates().then(templates => {
                         const txt = this.generateTxtFromTemplates(templates);
                         const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
                         const url = URL.createObjectURL(blob);
@@ -1426,10 +1436,12 @@ class TemplateApp {
 
     // Обработчики изменений шаблонов
     handleTemplateAdded(template) {
+        if (!template || !template.id) return;
+        
         // Проверяем, соответствует ли новый шаблон текущим фильтрам
         const matchesCategory = !this.currentCategory || this.currentCategory === 'all' || 
                               template.category === this.currentCategory;
-        const matchesSearch = !this.searchInput.value || 
+        const matchesSearch = !this.searchInput || !this.searchInput.value || 
                             template.name.toLowerCase().includes(this.searchInput.value.toLowerCase()) ||
                             template.content.toLowerCase().includes(this.searchInput.value.toLowerCase());
         const matchesFavorites = !this.currentFavoritesOnly || 
@@ -1437,12 +1449,16 @@ class TemplateApp {
 
         if (matchesCategory && matchesSearch && matchesFavorites) {
             const card = this.createTemplateCard(template);
-            this.templatesGrid.insertBefore(card, this.templatesGrid.firstChild);
-            this.markNewTemplate(template.id);
+            if (this.templatesGrid) {
+                this.templatesGrid.insertBefore(card, this.templatesGrid.firstChild);
+                this.markNewTemplate(template.id);
+            }
         }
     }
 
     handleTemplateUpdated(template) {
+        if (!template || !template.id) return;
+        
         // Находим карточку шаблона
         const card = this.templatesGrid.querySelector(`.template-card[data-id="${template.id}"]`);
         if (card) {
@@ -1456,11 +1472,17 @@ class TemplateApp {
     }
 
     handleTemplateDeleted(id) {
+        if (!id || !this.templatesGrid) return;
+        
         const card = this.templatesGrid.querySelector(`.template-card[data-id="${id}"]`);
         if (card) {
             card.style.opacity = '0';
             card.style.transform = 'scale(0.8)';
-            setTimeout(() => card.remove(), 300);
+            setTimeout(() => {
+                if (card && card.parentNode) {
+                    card.remove();
+                }
+            }, 300);
         }
     }
 }
@@ -1503,8 +1525,12 @@ function trapFocus(modal) {
     }
 
     modal.addEventListener('keydown', handleTab);
-    setTimeout(() => first.focus(), 10);
-    return () => modal.removeEventListener('keydown', handleTab);
+    setTimeout(() => {
+        if (first) first.focus();
+    }, 10);
+    return () => {
+        if (modal) modal.removeEventListener('keydown', handleTab);
+    };
 }
 
 // Patch TemplateApp modal opening methods to trap focus
@@ -1536,6 +1562,12 @@ if (typeof TemplateApp !== 'undefined') {
 // Ensure closing a modal via close button also releases focus trap
 document.querySelectorAll('.close-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        try { if (window.app && typeof window.app._releaseFocusTrap === 'function') window.app._releaseFocusTrap(); } catch(e){}
+        try {
+            if (window.app && typeof window.app._releaseFocusTrap === 'function') {
+                window.app._releaseFocusTrap();
+            }
+        } catch(e) {
+            console.warn('Ошибка при освобождении focus trap:', e);
+        }
     });
 });
