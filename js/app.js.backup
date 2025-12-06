@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Основной файл приложения для управления шаблонами чатов
  */
 
@@ -571,14 +571,16 @@ class TemplateApp {
      * Загрузка шаблонов из базы данных с учетом текущих фильтров
      */
     loadTemplates() {
-        this.loadAllTemplates().catch(error => {
-            console.error('шибка при загрузке шаблонов:', error);
-            this.showNotification('шибка при загрузке шаблонов', 'error');
-        });
+        const searchInput = document.getElementById('searchInput');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const query = searchInput ? searchInput.value.trim() : '';
+        const category = categoryFilter ? categoryFilter.value : 'all';
+        
+        this.searchTemplates(query, category);
     }
     
     loadAllTemplates() {
-        return TemplateDB.getAllTemplates().then(templates => {
+        TemplateDB.getAllTemplates().then(templates => {
             // build Fuse index-friendly list
             try {
                 this._fuseList = templates.map(t => ({ id: String(t.id), name: t.name || '', category: t.category || '', content: t.content || '', raw: t }));
