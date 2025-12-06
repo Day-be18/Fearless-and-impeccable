@@ -46,42 +46,49 @@
 
     // Обновление индикатора синхронизации
     function updateSyncIndicator(state, message) {
-        var indicator = document.getElementById('syncIndicator');
-        if (!indicator) return;
-        
-        // Сбрасываем классы
-        indicator.classList.remove('syncing', 'error', 'synced');
-        
-        var icon = indicator.querySelector('i');
-        var status = indicator.querySelector('.sync-status');
-        
-        // Обновляем состояние
-        switch (state) {
-            case 'syncing':
-                indicator.classList.add('syncing');
-                icon.className = 'fas fa-sync';
-                status.textContent = 'Синхронизация...';
-                break;
-            case 'error':
-                indicator.classList.add('error');
-                icon.className = 'fas fa-exclamation-circle';
-                status.textContent = message || 'Ошибка синхронизации';
-                break;
-            case 'synced':
-                indicator.classList.add('synced');
-                icon.className = 'fas fa-cloud-upload-alt';
-                status.textContent = 'Синхронизировано';
-                setTimeout(function() {
-                    if (indicator && icon && status) {
-                        indicator.classList.remove('synced');
-                        icon.className = 'fas fa-cloud';
-                        status.textContent = 'Локально';
-                    }
-                }, 3000);
-                break;
-            default:
-                icon.className = 'fas fa-cloud';
-                status.textContent = 'Локально';
+        try {
+            var indicator = document.getElementById('syncIndicator');
+            if (!indicator) return;
+            
+            // Сбрасываем классы
+            indicator.classList.remove('syncing', 'error', 'synced');
+            
+            var icon = indicator.querySelector('i');
+            var status = indicator.querySelector('.sync-status');
+            
+            // Проверяем наличие элементов перед использованием
+            if (!icon || !status) return;
+            
+            // Обновляем состояние
+            switch (state) {
+                case 'syncing':
+                    indicator.classList.add('syncing');
+                    icon.className = 'fas fa-sync';
+                    status.textContent = 'Синхронизация...';
+                    break;
+                case 'error':
+                    indicator.classList.add('error');
+                    icon.className = 'fas fa-exclamation-circle';
+                    status.textContent = message || 'Ошибка синхронизации';
+                    break;
+                case 'synced':
+                    indicator.classList.add('synced');
+                    icon.className = 'fas fa-cloud-upload-alt';
+                    status.textContent = 'Синхронизировано';
+                    setTimeout(function() {
+                        if (indicator && icon && status) {
+                            indicator.classList.remove('synced');
+                            icon.className = 'fas fa-cloud';
+                            status.textContent = 'Локально';
+                        }
+                    }, 3000);
+                    break;
+                default:
+                    icon.className = 'fas fa-cloud';
+                    status.textContent = 'Локально';
+            }
+        } catch (err) {
+            console.error('Ошибка обновления индикатора синхронизации:', err);
         }
     }
 
@@ -285,15 +292,27 @@
 
         // Создание таблицы в Supabase
         createSupabaseTable: function() {
-            return this.supabase.rpc('init_templates_table')
-                .then(function() {
-                    console.log('Таблица templates создана');
-                    return true;
-                })
-                .catch(function(err) {
-                    console.error('Ошибка создания таблицы:', err);
-                    return false;
-                });
+            if (!this.supabase) {
+                console.warn('Supabase не инициализирован, пропускаем создание таблицы');
+                return Promise.resolve(false);
+            }
+
+            return new Promise(function(resolve) {
+                try {
+                    this.supabase.rpc('init_templates_table')
+                        .then(function() {
+                            console.log('Таблица templates создана');
+                            resolve(true);
+                        })
+                        .catch(function(err) {
+                            console.warn('Таблица templates возможно уже существует:', err.message);
+                            resolve(true);
+                        });
+                } catch (err) {
+                    console.error('Ошибка при попытке создания таблицы:', err);
+                    resolve(false);
+                }
+            }.bind(this));
         },
 
         // Обработчик восстановления соединения
