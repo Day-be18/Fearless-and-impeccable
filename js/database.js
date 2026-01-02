@@ -547,6 +547,8 @@
                                         self.addToIndexedDB(newTemplate) : 
                                         Promise.resolve(self.addToLocalStorage(newTemplate)))
                                         .then(function() {
+                                            // Помещаем операцию в офлайн-очередь для последующей синхронизации
+                                            try { self.addToOfflineQueue('add', newTemplate); } catch (e) {}
                                             notifySubscribers('add', newTemplate);
                                             return newTemplate;
                                         });
@@ -555,10 +557,13 @@
                             // If no cloud, still save locally
                             if (self.useIndexedDB) {
                                 return self.addToIndexedDB(newTemplate).then(function() {
+                                    // queue for later sync
+                                    try { self.addToOfflineQueue('add', newTemplate); } catch (e) {}
                                     updateSyncIndicator('synced');
                                     return newTemplate;
                                 });
                             } else {
+                                try { self.addToOfflineQueue('add', newTemplate); } catch (e) {}
                                 return Promise.resolve(self.addToLocalStorage(newTemplate));
                             }
                         }
@@ -593,6 +598,97 @@
             templates.push(template);
             localStorage.setItem('templates', JSON.stringify(templates));
             return template;
+        },
+
+        // Добавление операции в офлайн-очередь
+        addToOfflineQueue: function(type, data) {
+            try {
+                this.offlineQueue.push({ type: type, data: data, timestamp: Date.now() });
+                try { localStorage.setItem('offlineQueue', JSON.stringify(this.offlineQueue)); } catch (e) {}
+            } catch (e) {
+                console.warn('Не удалось добавить в офлайн-очередь', e);
+            }
+        },
+
+        // Попытаться отправить офлайн-операции в облако
+        flushOfflineQueue: function() {
+            var self = this;
+            if (!this.supabase || !navigator.onLine || !this.offlineQueue || this.offlineQueue.length === 0) {
+                return Promise.resolve();
+            }
+
+            updateSyncIndicator('syncing');
+
+            return new Promise(function(resolve) {
+                function processNext() {
+                    if (!self.offlineQueue || self.offlineQueue.length === 0) {
+                        try { localStorage.removeItem('offlineQueue'); } catch (e) {}
+                        updateSyncIndicator('synced');
+                        return resolve();
+                    }
+
+                    var op = self.offlineQueue[0];
+                    var p = null;
+
+                    try {
+                        if (op.type === 'add') {
+                            var payload = {
+                                id: op.data.id,
+                                name: op.data.name,
+                                category: op.data.category,
+                                content: op.data.content,
+                                dateCreated: op.data.dateCreated,
+                                dateModified: op.data.dateModified
+                            };
+                            p = self.supabase.from('templates').upsert([payload]);
+                        } else if (op.type === 'update') {
+                            var up = {
+                                id: op.data.id,
+                                name: op.data.name,
+                                category: op.data.category,
+                                content: op.data.content,
+                                dateCreated: op.data.dateCreated,
+                                dateModified: op.data.dateModified
+                            };
+                            p = self.supabase.from('templates').update(up).eq('id', op.data.id);
+                        } else if (op.type === 'delete') {
+                            var delId = op.data && (op.data.id || op.data);
+                            p = self.supabase.from('templates').delete().eq('id', delId);
+                        } else {
+                            // Unknown op, drop it
+                            self.offlineQueue.shift();
+                            try { localStorage.setItem('offlineQueue', JSON.stringify(self.offlineQueue)); } catch (e) {}
+                            return processNext();
+                        }
+                    } catch (err) {
+                        console.error('Ошибка при подготовке офлайн-операции:', err);
+                        return resolve();
+                    }
+
+                    if (!p || typeof p.then !== 'function') {
+                        // Can't process, stop
+                        return resolve();
+                    }
+
+                    p.then(function(response) {
+                        if (response && response.error) {
+                            console.warn('Ошибка при выполнении офлайн-операции в облаке:', response.error);
+                            // stop further processing to avoid tight loop
+                            return resolve();
+                        }
+
+                        // succeeded — remove operation and continue
+                        self.offlineQueue.shift();
+                        try { localStorage.setItem('offlineQueue', JSON.stringify(self.offlineQueue)); } catch (e) {}
+                        processNext();
+                    }).catch(function(err) {
+                        console.error('Ошибка при отправке офлайн-операции:', err);
+                        return resolve();
+                    });
+                }
+
+                processNext();
+            });
         },
 
         // Получение всех шаблонов
@@ -678,8 +774,36 @@
             return this.ensureInitialized()
                 .then(function() {
                     if (!self.supabase || !navigator.onLine) {
+                        // Offline: update local copy and queue for later sync
                         updateSyncIndicator('error', 'Нет подключения к облаку');
-                        throw new Error('Отсутствует подключение к облачному хранилищу');
+                        // preserve favorite state from localStorage
+                        var favsOffline = [];
+                        try { favsOffline = JSON.parse(localStorage.getItem('favorites') || '[]'); } catch (e) { favsOffline = []; }
+                        var isFavOffline = favsOffline.includes(String(template.id));
+
+                        // Try to get existing local template to preserve dateCreated
+                        return (self.useIndexedDB ? self.getAllFromIndexedDB() : Promise.resolve(self.getAllFromLocalStorage()))
+                            .then(function(localTemplates) {
+                                var existingLocal = (localTemplates || []).find(function(t) { return String(t.id) === String(template.id); }) || {};
+                                var updatedTemplateOffline = {
+                                    id: template.id,
+                                    name: template.name.trim(),
+                                    category: (template.category || '').trim(),
+                                    content: template.content.trim(),
+                                    dateCreated: existingLocal.dateCreated || new Date().toISOString(),
+                                    dateModified: new Date().toISOString(),
+                                    favorite: isFavOffline
+                                };
+
+                                // Update local store
+                                return (self.useIndexedDB ? self.updateInIndexedDB(updatedTemplateOffline) : Promise.resolve(self.updateInLocalStorage(updatedTemplateOffline)))
+                                    .then(function() {
+                                        try { self.addToOfflineQueue('update', updatedTemplateOffline); } catch (e) {}
+                                        notifySubscribers('update', updatedTemplateOffline);
+                                        updateSyncIndicator('synced');
+                                        return updatedTemplateOffline;
+                                    });
+                            });
                     }
 
                     // Сначала проверяем существование шаблона в Supabase
@@ -742,9 +866,25 @@
                                 });
                         })
                         .catch(function(error) {
-                            console.error('Ошибка при обновлении шаблона:', error);
+                            console.error('Ошибка при обновлении шаблона (Supabase):', error);
                             updateSyncIndicator('error', 'Ошибка обновления в облаке');
-                            throw new Error('Не удалось обновить шаблон: ' + error.message);
+                            // Fallback: update locally and queue for later sync
+                            var updatedLocal = {
+                                id: template.id,
+                                name: template.name.trim(),
+                                category: (template.category || '').trim(),
+                                content: template.content.trim(),
+                                dateCreated: existingTemplate && existingTemplate.dateCreated ? existingTemplate.dateCreated : new Date().toISOString(),
+                                dateModified: new Date().toISOString(),
+                                favorite: (function(){ try { var f = JSON.parse(localStorage.getItem('favorites')||'[]'); return f.includes(String(template.id)); } catch(e){ return false; } })()
+                            };
+
+                            return (self.useIndexedDB ? self.updateInIndexedDB(updatedLocal) : Promise.resolve(self.updateInLocalStorage(updatedLocal)))
+                                .then(function() {
+                                    try { self.addToOfflineQueue('update', updatedLocal); } catch (e) {}
+                                    notifySubscribers('update', updatedLocal);
+                                    return updatedLocal;
+                                });
                         });
                 });
         },
@@ -842,11 +982,6 @@
 
         // Удаление из localStorage
         deleteFromLocalStorage: function(id) {
-            var templates = this.getAllFromLocalStorage();
-            var filteredTemplates = templates.filter(function(t) { return t.id !== id; });
-            localStorage.setItem('templates', JSON.stringify(filteredTemplates));
-            return true;
-        },
 
         // Поиск шаблонов
         searchTemplates: function(query, category, favoritesOnly) {
@@ -871,6 +1006,48 @@
                                         return false;
                                     }
                                 }
+                                if (!self.supabase || !navigator.onLine) {
+                                    updateSyncIndicator('error', 'Нет подключения к облаку');
+                                    // Delete locally and queue for later
+                                    var doLocalDelete = (self.useIndexedDB ? self.deleteFromIndexedDB(id) : Promise.resolve(self.deleteFromLocalStorage(id)));
+                                    return doLocalDelete.then(function() {
+                                        try { self.addToOfflineQueue('delete', { id: id }); } catch (e) {}
+                                        notifySubscribers('delete', id);
+                                        updateSyncIndicator('synced');
+                                        return true;
+                                    });
+                                }
+
+                                updateSyncIndicator('syncing');
+                                // Сначала удаляем из Supabase
+                                return self.supabase
+                                    .from('templates')
+                                    .delete()
+                                    .eq('id', id)
+                                    .then(function(response) {
+                                        if (response.error) throw response.error;
+
+                                        // После успешного удаления из Supabase, удаляем локально
+                                        return (self.useIndexedDB ?
+                                            self.deleteFromIndexedDB(id) :
+                                            Promise.resolve(self.deleteFromLocalStorage(id)))
+                                            .then(function() {
+                                                updateSyncIndicator('synced');
+                                                notifySubscribers('delete', id);
+                                                return true;
+                                            });
+                                    })
+                                    .catch(function(error) {
+                                        console.error('Ошибка при удалении шаблона (Supabase):', error);
+                                        updateSyncIndicator('error', 'Ошибка удаления из облака');
+                                        // Fallback: delete locally and queue
+                                        return (self.useIndexedDB ? self.deleteFromIndexedDB(id) : Promise.resolve(self.deleteFromLocalStorage(id)))
+                                            .then(function() {
+                                                try { self.addToOfflineQueue('delete', { id: id }); } catch (e) {}
+                                                notifySubscribers('delete', id);
+                                                return true;
+                                            });
+                                    });
                                 
                                 // Поиск по запросу
                                 if (query) {
